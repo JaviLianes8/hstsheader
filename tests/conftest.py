@@ -70,3 +70,9 @@ def chromium_parser() -> str:
 def chromium_limits() -> str:
     """Chromium's HSTS constants, see tests/upstream/MANIFEST.json for its source."""
     return read_upstream("chromium-http_security_headers.h")
+
+
+@pytest.fixture(scope="session")
+def preload_checker() -> str:
+    """chromium/hstspreload header.go, see tests/upstream/MANIFEST.json for its source."""
+    return read_upstream("hstspreload-header.go")
