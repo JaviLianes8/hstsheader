@@ -11,7 +11,11 @@ _KNOWN = frozenset({"max-age", "includesubdomains", "preload"})
 
 
 def _extension(name: object, value: object, seen: set[str]) -> str:
-    if not isinstance(name, str) or not is_token(name):
+    if not isinstance(name, str):
+        raise HstsError(f"extension name {name!r} is not an HTTP token", code="build.name")
+    # Check and write plain str copies: a str subclass could lie in __iter__ or __format__.
+    name = str.__str__(name)
+    if not is_token(name):
         raise HstsError(f"extension name {name!r} is not an HTTP token", code="build.name")
     key = ascii_lower(name)
     if key in _KNOWN:
@@ -25,6 +29,7 @@ def _extension(name: object, value: object, seen: set[str]) -> str:
         return name
     if not isinstance(value, str):
         raise HstsError(f"extension {name} needs a str value or None", code="type")
+    value = str.__str__(value)
     if is_token(value):
         return f"{name}={value}"
     if not is_sendable(value):

@@ -73,6 +73,7 @@ class Hsts:
     preload: bool = False
 
     def __post_init__(self) -> None:
-        check_max_age(self.max_age)
+        # Keep a plain int: an int subclass could render itself as anything in a header.
+        object.__setattr__(self, "max_age", int.__index__(check_max_age(self.max_age)))
         _check_flag("include_subdomains", self.include_subdomains)
         _check_flag("preload", self.preload)

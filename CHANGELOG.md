@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.2.0]
+## [0.2.0] - not released yet
 
 ### Added
 
@@ -20,6 +20,7 @@ All notable changes to this project are documented here. The format follows
 - The `hstsheader` command line (also `python -m hstsheader`) checks a value or the output
   of `curl -sI` and prints JSON.
 - `DELTA_SECONDS_MAX` and `PRELOAD_MIN_MAX_AGE` constants.
+- Folded lines (obsolete line folding) are read as whitespace, with a warning.
 
 ### Changed
 

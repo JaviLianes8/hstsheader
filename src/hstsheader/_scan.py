@@ -6,12 +6,17 @@
     directive-value           = token | quoted-string
 
 Whitespace may appear between any two words and separators (RFC 2616 section 2.2,
-"implied *LWS"). A directive that breaks the grammar is reported and skipped up to the
-next semicolon that is not inside a quoted string, so the rest can still be read.
+"implied *LWS"), and a folded line (CRLF followed by SP or HTAB) counts as whitespace, as
+RFC 2616 LWS and RFC 9112 section 5.2 allow. A quoted-pair follows RFC 9110 section 5.6.4
+(HTAB, SP, VCHAR or obs-text after the backslash), stricter on purpose than RFC 2616, which
+let any US-ASCII character follow. A directive that breaks the grammar is reported and
+skipped up to the next semicolon that is not inside a quoted string, so the rest can still
+be read.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext
@@ -19,6 +24,7 @@ from ._model import Issue
 
 # RFC 9110 section 5.5: CR, LF and NUL are invalid; a recipient may replace them with SP.
 _REPLACED = str.maketrans({"\r": " ", "\n": " ", "\0": " "})
+_FOLD = re.compile(r"\r?\n(?=[ \t])")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,14 +35,16 @@ class Directive:
     quoted: bool
     offset: int
     value_offset: int
+    # Whitespace around "=": legal, but the hstspreload.org checker refuses it for max-age.
+    spaced: bool = False
 
 
 @dataclass(slots=True)
 class Scan:
     directives: list[Directive] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
-    # Lower-cased names of directives that were skipped because they broke the grammar.
-    broken: set[str] = field(default_factory=set)
+    # (offset, lower-cased name) of directives skipped because they broke the grammar.
+    broken: list[tuple[int, str]] = field(default_factory=list)
 
 
 class _Broken(Exception):
@@ -100,10 +108,11 @@ def _directive(text: str, i: int) -> tuple[Directive, int]:
 
 def _rest(text: str, i: int, name: str, start: int) -> tuple[Directive, int]:
     value: str | None = None
-    quoted = False
+    quoted = spaced = False
     value_offset = i
     if i < len(text) and text[i] == "=":
         i = value_offset = _skip_ows(text, i + 1)
+        spaced = text[start + len(name)] != "=" or text[i - 1] != "="
         if i < len(text) and text[i] == '"':
             value, i = _quoted(text, i)
             quoted = True
@@ -116,7 +125,8 @@ def _rest(text: str, i: int, name: str, start: int) -> tuple[Directive, int]:
         i = _skip_ows(text, i)
     if i < len(text) and text[i] != ";":
         raise _Broken(f"unexpected {_show(text[i])} after {name}; directives end at ';'", i)
-    return Directive(name, ascii_lower(name), value, quoted, start, value_offset), i
+    key = ascii_lower(name)
+    return Directive(name, key, value, quoted, start, value_offset, spaced), i
 
 
 def _resync(text: str, i: int) -> int:
@@ -138,6 +148,10 @@ def _resync(text: str, i: int) -> int:
 def scan(text: str) -> Scan:
     """Split ``text`` into directives, recording every syntax problem as an :class:`Issue`."""
     result = Scan()
+    for fold in _FOLD.finditer(text):
+        message = "folded line (obsolete line folding), read as whitespace"
+        result.issues.append(Issue("obs-fold", message, "warning", fold.start()))
+        text = text[: fold.start()] + " " * len(fold.group()) + text[fold.end() :]
     for index, char in enumerate(text):
         if char in "\r\n\0":
             message = f"{_show(char)} is not allowed in a field value"
@@ -149,15 +163,17 @@ def scan(text: str) -> Scan:
     while True:
         start = i = _skip_ows(text, i)
         if i == len(text) or text[i] == ";":
+            # Point at a semicolon: the one closing this empty element, or the last one.
+            where = i if i < len(text) else text.rindex(";")
             message = "empty directive (an extra ';')"
-            result.issues.append(Issue("empty-directive", message, "warning", start))
+            result.issues.append(Issue("empty-directive", message, "warning", where))
         else:
             try:
                 directive, i = _directive(text, i)
                 result.directives.append(directive)
             except _Broken as broken:
                 result.issues.append(Issue("syntax", broken.message, "error", broken.offset))
-                result.broken.add(ascii_lower(broken.name))
+                result.broken.append((start, ascii_lower(broken.name)))
                 i = _resync(text, start)
         if i >= len(text):
             return result

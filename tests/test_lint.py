@@ -53,7 +53,7 @@ def test_every_repeat_is_reported_and_findings_follow_the_text() -> None:
 
 
 def test_cr_and_lf_are_each_reported_and_then_read_as_space() -> None:
-    assert _codes("max-age=1;\r\n preload") == [
+    assert _codes("max-age=1;\r\npreload") == [
         ("control-character", "error", 10),
         ("control-character", "error", 11),
     ]

@@ -6,6 +6,7 @@ import contextlib
 import io
 import itertools
 import re
+import subprocess
 from pathlib import Path
 
 import hstsheader
@@ -43,7 +44,7 @@ def test_every_readme_example_runs_and_prints_its_comment() -> None:
         assert out.getvalue().splitlines() == expected
         checked += len(expected)
     assert len(_python_blocks()) == 5
-    assert checked == 14
+    assert checked == 13
 
 
 def test_every_print_in_the_readme_shows_its_output() -> None:
@@ -72,17 +73,20 @@ def test_changelog_has_an_entry_for_this_version() -> None:
     assert f"## [{hstsheader.__version__}]" in text
 
 
+def _tracked_files() -> list[Path]:
+    """Files under version control; local venvs and build folders are never scanned."""
+    listing = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.decode("utf-8")
+    return [ROOT / name for name in listing.split("\0") if name]
+
+
 def test_no_em_dash_anywhere_in_the_tree() -> None:
-    suffixes = {".py", ".md", ".toml", ".ps1", ".txt", ".yml"}
-    for path in ROOT.rglob("*"):
-        parts = path.relative_to(ROOT).parts
-        if not path.is_file() or path.suffix not in suffixes or parts[:2] == ("tests", "upstream"):
-            continue
-        if any(
-            (part.startswith(".") and part != ".github") or part == "__pycache__" for part in parts
-        ):
-            continue
-        assert chr(0x2014) not in path.read_text(encoding="utf-8"), path
+    files = _tracked_files()
+    assert ROOT / "README.md" in files
+    for path in files:
+        if path.suffix in {".py", ".md", ".toml", ".ps1", ".txt", ".yml", ".json"}:
+            assert chr(0x2014) not in path.read_text(encoding="utf-8"), path
 
 
 def test_source_files_stay_under_two_hundred_lines() -> None:

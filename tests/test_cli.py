@@ -68,9 +68,17 @@ def test_preload_check(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFi
 def test_preload_check_fails_when_browsers_ignore_the_header(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    bad = "max-age=31536000; includeSubDomains; preload; preload"
+    bad = "max-age=31536000; includeSubDomains; preload; includeSubDomains"
     code, report, _ = _run(monkeypatch, capsys, "--preload", bad)
     assert code == 1 and report["preloadable"] is False and report["preload_issues"] == []
+
+
+def test_a_repeated_preload_is_not_honoured_by_the_rfc_but_still_preloadable(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    header = "max-age=31536000; includeSubDomains; preload; preload"
+    code, report, _ = _run(monkeypatch, capsys, "--preload", header)
+    assert code == 0 and report["honoured"] is False and report["preloadable"] is True
 
 
 def test_a_response_head_on_stdin(

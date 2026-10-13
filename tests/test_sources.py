@@ -36,6 +36,7 @@ def test_every_rfc_6797_example_is_honoured(rfc6797: str) -> None:
 
 
 def test_the_grammar_and_rules_this_library_applies_are_in_rfc_6797(rfc6797: str) -> None:
+    # Short citations of https://www.rfc-editor.org/rfc/rfc6797.txt sections 6.1 and 8.1.
     grammar = _section(rfc6797, "\n6.1.  Strict", "\n6.1.1.")
     flat = " ".join(grammar.split())
     assert '[ directive ] *( ";" [ directive ] )' in flat
@@ -78,6 +79,7 @@ def test_the_delta_seconds_ceiling_is_the_one_rfc_9111_names(rfc9111: str) -> No
 
 
 def test_preload_requirements_match_hstspreload_org(preload_page: str) -> None:
+    # Short anchors from https://hstspreload.org/ (fetched copy pinned in MANIFEST.json).
     text = re.sub(r"<[^>]+>", "", preload_page)
     flat = " ".join(text.split())
     minimum = re.search(r"The max-age must be at least (\d+) seconds", flat)
@@ -92,7 +94,10 @@ def test_preload_requirements_match_hstspreload_org(preload_page: str) -> None:
 def test_the_checker_constants_match_hstspreload(preload_checker: str) -> None:
     assert re.search(r"oneYear\s+= 86400 \* 365\n", preload_checker)
     assert re.search(r"tenYears\s+= 10 \* oneYear\n", preload_checker)
-    assert "we don't support quoted values" in preload_checker
+    # Every max-age character must be a digit there, so a quote is refused.
+    assert "if c < '0' || c > '9' {" in preload_checker
+    # The value is read with strconv.ParseUint(..., 10, 64): at most 2^64 - 1.
+    assert "strconv.ParseUint(maxAgeNumericalString, 10, 64)" in preload_checker
     assert _TEN_YEARS == 10 * 365 * 86400 == 10 * PRELOAD_MIN_MAX_AGE
 
 
@@ -150,9 +155,12 @@ def test_the_checker_preload_vectors_agree(preload_checker_tests: str) -> None:
 
 
 def test_the_chromium_rules_mirrored_in_strict_mode(chromium_parser: str) -> None:
-    assert "Reject the header if `max-age` is specified more than once." in chromium_parser
-    assert "Reject the header if `includeSubDomains` has a value specified" in chromium_parser
-    assert "Reject the header if no `max-age` was set." in chromium_parser
+    # Structural anchors in the pinned parser (URL and commit in MANIFEST.json).
+    code = " ".join(chromium_parser.split())
+    assert "if (max_age_seen) { return false; }" in code
+    assert "if (include_subdomains_value) { return false; }" in code
+    assert "if (!hsts_iterator.value().empty() || hsts_iterator.value_is_quoted()) {" in code
+    assert "if (!max_age_seen) { return false; }" in code
     for header in ("max-age=1; max-age=1", "max-age=1; includeSubDomains=x", "preload"):
         assert any(issue.severity == "error" for issue in lint(header)), header
 

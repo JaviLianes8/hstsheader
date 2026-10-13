@@ -48,10 +48,18 @@ def test_a_quoted_max_age_is_refused_by_the_preload_checker() -> None:
 
 
 def test_rfc_errors_block_preloading() -> None:
-    header = GOOD + "; preload"
+    header = GOOD + "; includeSubDomains"
     assert _codes(header) == ["duplicate"]
     assert not is_preloadable(header)
+    assert not is_preloadable(GOOD + "; max-age=31536000")
     assert _codes("includeSubDomains; preload") == ["max-age.missing"]
+
+
+def test_a_repeated_preload_is_only_a_warning_as_on_the_site() -> None:
+    for header in (GOOD + "; preload", GOOD + "; x; x"):
+        (issue,) = preload_issues(header)
+        assert (issue.code, issue.severity) == ("duplicate", "warning")
+        assert is_preloadable(header)
 
 
 def test_a_header_with_no_usable_max_age_lists_every_gap() -> None:

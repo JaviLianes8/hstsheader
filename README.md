@@ -2,7 +2,8 @@
 
 Parse, check and build the HTTP Strict-Transport-Security header, typed and zero-dependency.
 
-- Reads the header the way RFC 6797 says a browser must, or tolerantly for logs and scanners.
+- Reads the header the way RFC 6797 says a user agent must, or tolerantly for logs and
+  scanners.
 - Lists every problem with a stable code and the offset where it starts.
 - Checks the hstspreload.org header requirements before you submit a domain.
 - Builds header values that cannot carry an injected line.
@@ -30,15 +31,18 @@ print(parse(' MAX-AGE = "600" ; unknown=1'))
 
 Directive names match without regard to ASCII case, whitespace may surround `;` and `=`,
 unknown directives are ignored and `max-age` may be quoted, as RFC 6797 section 6.1
-allows. `max-age` must be ASCII digits; a value above 2147483648 (2^31, the ceiling RFC
+allows. A folded line counts as whitespace. Inside a quoted string, a backslash may be
+followed by HTAB, SP, a visible ASCII character or obs-text (RFC 9110 section 5.6.4,
+stricter on purpose than the RFC 2616 rule, which allowed any ASCII character there).
+`max-age` must be ASCII digits; a value above 2147483648 (2^31, the ceiling RFC
 9111 section 1.2.2 sets for delta-seconds) is read as 2147483648.
 
 ## Strict or tolerant
 
 By default `parse` is tolerant: it skips directives it cannot read, keeps the first valid
 `max-age`, and raises `HstsError` only when no valid `max-age` is left. With
-`strict=True` it accepts only a header that a conforming browser honours, and the error
-names the rule and the offset.
+`strict=True` it accepts only a header that a user agent following RFC 6797 honours, and
+the error names the rule and the offset.
 
 ```python
 from hstsheader import HstsError, parse
@@ -63,17 +67,17 @@ read only the first one, as RFC 6797 section 8.1 requires.
 ```python
 from hstsheader import lint
 
-for issue in lint('max-age="031536000"; includeSubDomains=yes; ;'):
+for issue in lint('max-age="031536000"; includeSubDomains=yes;'):
     print(issue.severity, issue.code, issue.offset)
 # warning max-age.leading-zero 8
 # warning max-age.quoted 8
 # error value-not-allowed 21
-# warning empty-directive 44
-# warning empty-directive 45
+# warning empty-directive 42
 ```
 
-An `error` means a browser ignores the whole header. A `warning` marks something legal
-that is likely a mistake or that some checkers refuse.
+An `error` means a user agent that follows RFC 6797 ignores the whole header. A
+`warning` marks something legal that is likely a mistake or that some checkers refuse.
+Offsets index the field value; an empty directive points at its semicolon.
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
@@ -88,6 +92,8 @@ that is likely a mistake or that some checkers refuse.
 | `max-age.leading-zero` | warning | the value starts with 0 |
 | `max-age.capped` | warning | the value is above 2147483648 and is read as that |
 | `max-age.quoted` | warning | valid, but hstspreload.org refuses it |
+| `max-age.spaced` | warning | space around `=` in max-age: valid, but hstspreload.org refuses it |
+| `obs-fold` | warning | a folded line, read as whitespace |
 | `max-age.zero-subdomains` | warning | `max-age=0` makes `includeSubDomains` pointless |
 | `empty-directive` | warning | an extra `;` |
 | `unknown-directive` | warning | a directive this library does not know is ignored |
@@ -108,10 +114,12 @@ for issue in preload_issues("max-age=10886400; preload"):
 
 The rules are the header requirements on hstspreload.org: `includeSubDomains` and
 `preload` present and a `max-age` of at least 31536000 seconds. The site's checker also
-refuses a quoted `max-age`, treats `max-age=0` as a removal request and warns above ten
-years; the same findings come back as `preload.max-age-quoted`, `preload.max-age-zero`
-and the warning `preload.max-age-over-ten-years`. RFC errors are included, since a header
-browsers ignore cannot be preloaded. The site also checks redirects, certificates and
+refuses a quoted `max-age`, space around its `=` and a value above 2^64 - 1, treats
+`max-age=0` as a removal request and warns above ten years; the same findings come back
+as `preload.max-age-quoted`, `preload.max-age-spaced`, `preload.max-age-unreadable`,
+`preload.max-age-zero` and the warning `preload.max-age-over-ten-years`. RFC errors are
+included, except a repeated directive other than `max-age` and `includeSubDomains`, which
+the site only warns about and which comes back as a warning. The site also checks redirects, certificates and
 subdomains over the network; that part is out of scope here.
 
 ## Build a header
@@ -139,9 +147,19 @@ $ curl -sI https://example.com | hstsheader --preload
 $ python -m hstsheader "max-age=600"
 ```
 
-It prints the policy and the findings as JSON. The exit status is 0 when browsers honour
-the header (and, with `--preload`, when it meets the preload rules), 1 when they do not,
-and 2 when the input has no Strict-Transport-Security field.
+It prints the policy and the findings as JSON. The exit status is 0 when a user agent
+following RFC 6797 honours the header (with `--preload`: when it meets the preload
+rules), 1 when it does not, and 2 when the input has no Strict-Transport-Security field
+(empty input included). A head ends at its blank line, folded lines are joined, pasted
+fields without a status line are accepted, and with several responses (`curl -sIL`) the
+last one is checked, since that is the one the browser keeps.
+
+## Where Chromium differs
+
+This library follows RFC 6797. Chromium's parser is more lenient in two ways and stricter
+in one: it accepts a repeated directive other than `max-age` and `includeSubDomains`
+(so a repeated `preload` still works there), it does not treat `preload` as special, and
+it stores at most one year of `max-age` whatever the header says.
 
 ## API
 
