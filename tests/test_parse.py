@@ -148,3 +148,19 @@ def test_an_unreadable_max_age_reports_the_syntax_error() -> None:
         parse("max-age=600 junk")
     assert caught.value.code == "syntax"
     assert caught.value.offset == 12
+
+
+def test_every_field_line_is_checked_for_text_not_only_the_first() -> None:
+    with pytest.raises(TypeError):
+        parse(["max-age=1", 5])  # type: ignore[list-item]
+
+
+def test_a_quoted_superscript_digit_is_not_a_number() -> None:
+    with pytest.raises(HstsError) as caught:
+        parse('max-age="\u00b2"')
+    assert caught.value.code == "max-age.not-digits"
+
+
+def test_a_quoted_semicolon_inside_a_broken_directive_does_not_start_a_directive() -> None:
+    result = parse('max-age=1; x=a "b; preload; c"; includeSubDomains')
+    assert result == Hsts(max_age=1, include_subdomains=True)

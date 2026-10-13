@@ -24,6 +24,7 @@ from hstsheader import Hsts, HstsError, parse
         ('max-age=600; x="\x01"', "syntax", 16),
         ('max-age=600; x="\\\x01"', "syntax", 17),
         ('max-age=600; x="\\', "syntax", 15),
+        ('max-age=600; x="€"', "syntax", 16),
         ("max-age=600\x00", "control-character", 11),
         ("max-age=6\n00", "control-character", 9),
         ("includeSubDomains", "max-age.missing", None),

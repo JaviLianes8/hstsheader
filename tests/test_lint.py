@@ -73,3 +73,12 @@ def test_the_messages_quote_the_offending_character() -> None:
     assert "','" in issue.message
     (control,) = [i for i in lint("max-age=1; x=\x7f") if i.code == "syntax"]
     assert "U+007F" in control.message
+
+
+def test_exactly_two_to_the_31_is_not_capped() -> None:
+    assert lint("max-age=2147483648") == ()
+
+
+def test_non_ascii_characters_are_named_by_code_point() -> None:
+    (issue,) = [i for i in lint("max-age=1; x=\u00e9") if i.code == "syntax"]
+    assert "U+00E9" in issue.message
