@@ -1,0 +1,85 @@
+{
+  "rfc6797.txt": {
+    "title": "RFC 6797, HTTP Strict Transport Security (November 2012)",
+    "url": "https://www.rfc-editor.org/rfc/rfc6797.txt",
+    "revision": "RFC 6797 as published (RFCs are immutable)",
+    "fetched": "2026-10-13",
+    "licence": "IETF Trust Legal Provisions (https://trustee.ietf.org/license-info)",
+    "size": 103554,
+    "sha256": "7cefa03f77547532580b7f877b4e6388bb66c20631b624667a0065c14ae3d364"
+  },
+  "rfc2616.txt": {
+    "title": "RFC 2616, Hypertext Transfer Protocol HTTP/1.1 (June 1999)",
+    "url": "https://www.rfc-editor.org/rfc/rfc2616.txt",
+    "revision": "RFC 2616 as published (RFCs are immutable)",
+    "fetched": "2026-10-13",
+    "licence": "IETF Trust Legal Provisions (https://trustee.ietf.org/license-info)",
+    "size": 422279,
+    "sha256": "10211d2885196b97b1c78e1672f3f68ae97c294596ef2b7fd890cbd30a3427bf"
+  },
+  "rfc9110.txt": {
+    "title": "RFC 9110, HTTP Semantics (June 2022)",
+    "url": "https://www.rfc-editor.org/rfc/rfc9110.txt",
+    "revision": "RFC 9110 as published (RFCs are immutable)",
+    "fetched": "2026-10-13",
+    "licence": "IETF Trust Legal Provisions (https://trustee.ietf.org/license-info)",
+    "size": 502941,
+    "sha256": "21c1cdce6ab0e5509b04d84a28000836c7a087cf786efe6f04877ebfff47232a"
+  },
+  "rfc9111.txt": {
+    "title": "RFC 9111, HTTP Caching (June 2022)",
+    "url": "https://www.rfc-editor.org/rfc/rfc9111.txt",
+    "revision": "RFC 9111 as published (RFCs are immutable)",
+    "fetched": "2026-10-13",
+    "licence": "IETF Trust Legal Provisions (https://trustee.ietf.org/license-info)",
+    "size": 84477,
+    "sha256": "aeb52adb3279d5f23dae34f68af11bd5cef0a0aff7ffcd014c9ca93c5302cf3e"
+  },
+  "hstspreload.html": {
+    "title": "hstspreload.org front page with the submission requirements",
+    "url": "https://hstspreload.org/",
+    "revision": "page as fetched; it changes when the site does",
+    "fetched": "2026-10-13",
+    "licence": "no licence stated; copyright of its authors, kept locally only",
+    "size": 15809,
+    "sha256": "73ac4c0aae9cb9d1406f23ad8b336aef3e18c2b511245224809753bf5ff73c63"
+  },
+  "hstspreload-header.go": {
+    "title": "chromium/hstspreload header.go, the checker behind hstspreload.org",
+    "url": "https://raw.githubusercontent.com/chromium/hstspreload/d624d7c87b33307629f776b26c79448ca193a38f/header.go",
+    "revision": "chromium/hstspreload commit d624d7c87b33307629f776b26c79448ca193a38f",
+    "fetched": "2026-10-13",
+    "licence": "BSD-3-Clause (LICENSE in the same repository)",
+    "size": 11512,
+    "sha256": "dab334c9f08945c911b0626c7cddd47ca980f304d48b8ccb445f689e370ade6c"
+  },
+  "hstspreload-header_test.go": {
+    "title": "chromium/hstspreload header_test.go, its test vectors",
+    "url": "https://raw.githubusercontent.com/chromium/hstspreload/d624d7c87b33307629f776b26c79448ca193a38f/header_test.go",
+    "revision": "chromium/hstspreload commit d624d7c87b33307629f776b26c79448ca193a38f",
+    "fetched": "2026-10-13",
+    "licence": "BSD-3-Clause (LICENSE in the same repository)",
+    "size": 18561,
+    "sha256": "324075c0375ead41e4ea04dd2667468afcc2f880509e3c0e894b9afd2739179a"
+  },
+  "chromium-http_security_headers.cc": {
+    "title": "Chromium net/http/http_security_headers.cc, the browser HSTS header parser",
+    "url": "https://chromium.googlesource.com/chromium/src/+/78ed3b7f37599d8a7dba1aa8375a22a23740a31d/net/http/http_security_headers.cc?format=TEXT",
+    "revision": "chromium/src commit 78ed3b7f37599d8a7dba1aa8375a22a23740a31d",
+    "fetched": "2026-10-13",
+    "licence": "BSD-3-Clause (Chromium LICENSE)",
+    "size": 4723,
+    "sha256": "dc89687f372766478ac9deb101c2c078b5c6c07d829f34aa1bcd247dffc5dafd",
+    "encoding": "base64"
+  },
+  "chromium-http_security_headers.h": {
+    "title": "Chromium net/http/http_security_headers.h, the max-age ceiling",
+    "url": "https://chromium.googlesource.com/chromium/src/+/78ed3b7f37599d8a7dba1aa8375a22a23740a31d/net/http/http_security_headers.h?format=TEXT",
+    "revision": "chromium/src commit 78ed3b7f37599d8a7dba1aa8375a22a23740a31d",
+    "fetched": "2026-10-13",
+    "licence": "BSD-3-Clause (Chromium LICENSE)",
+    "size": 1221,
+    "sha256": "5b9fc2ab06009269efa7778d21b3c01f0361aab0f5a20776a784017d5a035f9a",
+    "encoding": "base64"
+  }
+}

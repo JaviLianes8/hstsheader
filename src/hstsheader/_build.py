@@ -1,25 +1,78 @@
-"""Render a Strict-Transport-Security header value."""
+"""Render a Strict-Transport-Security header value that cannot carry an injection."""
 
 from __future__ import annotations
 
-from ._model import HstsError
+from collections.abc import Mapping
+
+from ._chars import ascii_lower, is_sendable, is_token, quote
+from ._model import Hsts, HstsError
+
+_KNOWN = frozenset({"max-age", "includesubdomains", "preload"})
 
 
-def build(max_age: int, *, include_subdomains: bool = False, preload: bool = False) -> str:
+def _extension(name: object, value: object, seen: set[str]) -> str:
+    if not isinstance(name, str):
+        raise HstsError(f"extension name {name!r} is not an HTTP token", code="build.name")
+    # Check and write plain str copies: a str subclass could lie in __iter__ or __format__.
+    name = str.__str__(name)
+    if not is_token(name):
+        raise HstsError(f"extension name {name!r} is not an HTTP token", code="build.name")
+    key = ascii_lower(name)
+    if key in _KNOWN:
+        raise HstsError(
+            f"{name} is set by its own argument, not as an extension", code="build.name"
+        )
+    if key in seen:
+        raise HstsError(f"extension {name} is given twice", code="duplicate")
+    seen.add(key)
+    if value is None:
+        return name
+    if not isinstance(value, str):
+        raise HstsError(f"extension {name} needs a str value or None", code="type")
+    value = str.__str__(value)
+    if is_token(value):
+        return f"{name}={value}"
+    if not is_sendable(value):
+        message = f"extension {name} has a control or non-ASCII character in its value"
+        raise HstsError(message, code="build.value")
+    return f"{name}={quote(value)}"
+
+
+def build(
+    max_age: int | Hsts,
+    *,
+    include_subdomains: bool | None = None,
+    preload: bool | None = None,
+    extensions: Mapping[str, str | None] | None = None,
+) -> str:
     """Build a Strict-Transport-Security header value.
 
-    ``max_age`` is required and must be a non-negative integer (seconds). The
-    ``includeSubDomains`` and ``preload`` directives are appended when requested,
-    in the canonical order.
+    Pass an :class:`Hsts`, or ``max_age`` (an ``int`` from 0 to
+    :data:`DELTA_SECONDS_MAX`) with the ``include_subdomains`` and ``preload`` flags.
+    ``extensions`` maps further directive names (HTTP tokens other than the three known
+    ones) to a value, or to ``None`` for a valueless directive; values that are not
+    tokens are written as quoted strings, and control or non-ASCII characters are
+    refused, so the result is always one well-formed field value. Directives come out
+    in a fixed order: max-age, includeSubDomains, preload, then the extensions.
     """
-    if isinstance(max_age, bool) or not isinstance(max_age, int):
-        raise HstsError("max_age must be an integer number of seconds")
-    if max_age < 0:
-        raise HstsError("max_age must not be negative")
-
-    parts = [f"max-age={max_age}"]
-    if include_subdomains:
+    if isinstance(max_age, Hsts):
+        if include_subdomains is not None or preload is not None:
+            raise TypeError("pass the flags on the Hsts object, not as arguments")
+        policy = max_age
+    else:
+        policy = Hsts(
+            max_age,
+            False if include_subdomains is None else include_subdomains,
+            False if preload is None else preload,
+        )
+    parts = [f"max-age={policy.max_age}"]
+    if policy.include_subdomains:
         parts.append("includeSubDomains")
-    if preload:
+    if policy.preload:
         parts.append("preload")
+    if extensions is not None and not isinstance(extensions, Mapping):
+        raise HstsError("extensions must be a mapping of name to value", code="type")
+    seen: set[str] = set()
+    for name, value in (extensions or {}).items():
+        parts.append(_extension(name, value, seen))
     return "; ".join(parts)

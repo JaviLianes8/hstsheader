@@ -2,48 +2,35 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
+from ._lint import analyse
 from ._model import Hsts, HstsError
 
 
-def _unquote(value: str) -> str:
-    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-        return value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
-    return value
-
-
-def parse(header: str) -> Hsts:
+def parse(header: str | Iterable[str], *, strict: bool = False) -> Hsts:
     """Parse a Strict-Transport-Security header value.
 
-    Directive names are matched case-insensitively. Empty directives, surrounding
-    whitespace and unknown directives are tolerated and ignored. ``max-age`` is
-    required; a missing, repeated-conflicting or non-integer ``max-age`` raises
-    :class:`HstsError`.
+    ``header`` is one field value, or the field lines of a response in order (only the
+    first is read, RFC 6797 section 8.1). Directive names match ASCII case-insensitively,
+    whitespace around ``;`` and ``=`` is allowed, unknown directives are ignored and
+    ``max-age`` may be quoted. Values above :data:`DELTA_SECONDS_MAX` are read as it.
+
+    With ``strict=True`` the header must be one a conforming user agent honours: any
+    finding of severity ``error`` from :func:`lint` raises :class:`HstsError` with its
+    code and offset. By default the reader is tolerant: it skips broken directives, keeps
+    the first valid ``max-age`` and raises only when no valid ``max-age`` is left.
     """
-    max_age: int | None = None
-    include_subdomains = False
-    preload = False
-
-    for raw in header.split(";"):
-        directive = raw.strip()
-        if not directive:
-            continue
-        name, sep, value = directive.partition("=")
-        key = name.strip().lower()
-        if key == "max-age":
-            if not sep:
-                raise HstsError("max-age directive has no value")
-            max_age = _parse_max_age(_unquote(value.strip()))
-        elif key == "includesubdomains":
-            include_subdomains = True
-        elif key == "preload":
-            preload = True
-
-    if max_age is None:
-        raise HstsError("max-age directive is required")
-    return Hsts(max_age=max_age, include_subdomains=include_subdomains, preload=preload)
-
-
-def _parse_max_age(value: str) -> int:
-    if not value.isdigit():
-        raise HstsError(f"max-age must be a non-negative integer, got {value!r}")
-    return int(value)
+    analysis = analyse(header)
+    if strict and analysis.errors:
+        first = analysis.errors[0]
+        raise HstsError(first.message, code=first.code, offset=first.offset)
+    if analysis.max_age is None:
+        # analyse() always records an error when no max-age is usable: a max-age finding,
+        # or the syntax error that made the max-age directive unreadable.
+        reason = next(
+            (i for i in analysis.errors if i.code.startswith(("max-age", "field"))),
+            analysis.errors[0],
+        )
+        raise HstsError(reason.message, code=reason.code, offset=reason.offset)
+    return Hsts(analysis.max_age, analysis.include_subdomains, analysis.preload)
