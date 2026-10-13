@@ -157,8 +157,7 @@ def scan(text: str) -> Scan:
                 result.directives.append(directive)
             except _Broken as broken:
                 result.issues.append(Issue("syntax", broken.message, "error", broken.offset))
-                if broken.name:
-                    result.broken.add(ascii_lower(broken.name))
+                result.broken.add(ascii_lower(broken.name))
                 i = _resync(text, start)
         if i >= len(text):
             return result
