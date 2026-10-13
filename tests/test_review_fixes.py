@@ -131,6 +131,19 @@ def _run(
         (b"Date: x\r\nStrict-Transport-Security: " + GOOD.encode() + b"\r\n", 0, GOOD),
         (b"\r\n\r\nHTTP/2 200\r\nstrict-transport-security: " + GOOD.encode(), 0, GOOD),
         (b"HTTP/2 200\rstrict-transport-security: " + GOOD.encode() + b"\r\r", 0, GOOD),
+        (
+            b"HTTP/2 200\r\nStrict-Transport-Security: max-age=31536000;\r\n"
+            b"\t includeSubDomains; preload\r\n\r\n",
+            0,
+            GOOD,
+        ),
+        (
+            b"HTTP/1.1 301 Moved\r\nStrict-Transport-Security: max-age=0\r\n"
+            b"HTTP/2 200\r\nstrict-transport-security: " + GOOD.encode() + b"\r\n",
+            0,
+            GOOD,
+        ),
+        (b"HTTP/2 200\r\nStrict-Transport-Security : " + GOOD.encode() + b"\r\n", 2, None),
         (b"", 2, None),
         (b"\r\n \n", 2, None),
     ],

@@ -9,11 +9,11 @@ Progress:
 - [x] Preload eligibility checker (hstspreload.org header requirements)
 - [x] Safe builder: typed flags, capped max-age, extension directives without injection
 - [x] Command line
-- [ ] Contracts: pinned sources, README examples, typing, installed wheel
+- [x] Contracts: pinned sources, README examples, typing, installed wheel
 - [x] Docs and packaging: README, CHANGELOG, metadata, sdist contents
-- [ ] Gates: ruff format, ruff check, mypy --strict, pytest
-- [ ] Mutation run: removing guarded logic makes the suite fail
-- [ ] Independent review findings fixed with regression tests
+- [x] Gates: ruff format, ruff check, mypy --strict, pytest
+- [x] Mutation run: removing guarded logic makes the suite fail
+- [x] Independent review findings fixed with regression tests
 - [ ] Pull request opened, guard clean
 
 ## Starting point
@@ -109,3 +109,52 @@ against the sources below:
 - Host matching, storage and expiry (RFC 6797 sections 8.1.1 to 8.3): they belong to a UA.
 - The legacy 18 week preload policy for bulk entries submitted before October 2017.
 - Network checks that hstspreload.org also runs (redirects, certificates, subdomains).
+
+## Verification
+
+- Gates on CPython 3.13.2, from a fresh clone of the branch: `ruff format --check .`,
+  `ruff check .`, `mypy --strict src` (and `src tests`) and `pytest`. With
+  `HSTSHEADER_E2E=1` the installed-wheel test builds the wheel and sdist, checks their
+  contents (no planning notes, no fetched files, the manifest, the fetch script and the
+  entry point present), installs the wheel in a fresh venv and drives the API, the
+  `hstsheader` script and `python -m hstsheader` from an empty folder. The fetch script ran
+  on that clone and every file matched the manifest. Without the fetched files their tests
+  skip and the rest of the suite passes.
+- The hstspreload checker's own test vectors are read from the pinned `header_test.go`: all
+  22 one-year preload vectors agree with `is_preloadable`, and the 24 parse vectors agree
+  with `lint` except four listed cases where RFC 6797 is stricter (a missing max-age, a
+  repeated preload).
+- Guarded logic was changed one piece at a time, with no bytecode, a purged cache and a
+  timeout per mutant, the suite green before and after. First run: 107 mutants, 7 alive;
+  tests were added for six. Second run after the review fixes: 145 mutants, 4 alive; tests
+  were added for three (a status line without a blank line before it, a fold that starts
+  with a tab, a space before the colon of a field name). One is equivalent: resuming after a
+  broken directive from its start or from the error offset reaches the same semicolon,
+  because no semicolon outside a quoted string can sit between the two.
+- Seeded random checks: 3000 built policies with random extensions survive a strict round
+  trip, and 3000 random strings go through `lint`, `preload_issues` and both reading modes
+  raising nothing but `HstsError`, with the tolerant result equal to the strict one whenever
+  strict mode accepts.
+
+## Review fixes
+
+An independent review attacked the branch; each finding below is fixed with a test that
+fails on the code before the fix (`tests/test_review_fixes.py` and the updated tests):
+
+- `str` and `int` subclasses could make `build` write a line break; names, values and
+  `max_age` are now copied to plain `str` and `int` before they are checked and written.
+- The command line now stops a head at its blank line, joins folded lines, does not treat a
+  continuation line as a field, accepts pasted fields without a status line, leading blank
+  lines and bare CR line ends, checks the last response of a redirect chain, and exits 2 on
+  empty input or a terminal with nothing piped in.
+- The preload check now refuses what the site's checker refuses: space around `=` in
+  max-age and a max-age above 2^64 - 1; a repeated directive other than max-age and
+  includeSubDomains is a warning there, as on the site and in Chromium.
+- A folded line inside a value is whitespace with an `obs-fold` warning, as RFC 2616 LWS
+  allows; a bare CR, LF or NUL stays an error.
+- A broken directive still counts when a name repeats; an empty directive points at its
+  semicolon; input that is neither text nor a list of text gets a clear `TypeError`.
+- Docs say "a user agent that follows RFC 6797" instead of "a browser", list where
+  Chromium differs, and state that quoted-pairs follow RFC 9110 on purpose. Source tests use
+  code anchors instead of comment sentences, the em-dash scan reads tracked files only, and
+  the changelog marks 0.2.0 as not released yet.
