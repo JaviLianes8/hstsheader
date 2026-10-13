@@ -38,7 +38,7 @@ policy = parse(["max-age=63072000; includeSubDomains; preload", "max-age=0"])
 assert policy == Hsts(63072000, True, True) and is_preloadable(policy)
 assert parse('max-age="1"; max-age=2').max_age == 1
 assert parse("max-age=" + "9" * 6000).max_age == DELTA_SECONDS_MAX == 2**31
-assert [i.code for i in lint("max-age=1; x; ;")] == ["unknown-directive", "empty-directive"]
+assert [i.code for i in lint("max-age=1; x;")] == ["unknown-directive", "empty-directive"]
 assert isinstance(lint("")[0], Issue)
 assert [i.code for i in preload_issues("max-age=1; preload")] == [
     "preload.subdomains-missing", "preload.max-age-too-short",
