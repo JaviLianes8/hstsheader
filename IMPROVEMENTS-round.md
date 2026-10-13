@@ -2,13 +2,13 @@
 
 Progress:
 - [x] Brainstorm ranked improvements (this file)
-- [ ] Pin the ground truth: RFC 6797, RFC 9110, RFC 9111, RFC 2616, hstspreload.org, the hstspreload header checker, the Chromium header parser
-- [ ] Grammar-driven scanner with offsets: tokens, quoted strings, implied whitespace, recovery
-- [ ] Two reading modes: strict (the RFC 6797 processing model) and tolerant (recover the intent)
-- [ ] Linter: every finding with a code, a severity and an offset
-- [ ] Preload eligibility checker (hstspreload.org header requirements)
-- [ ] Safe builder: typed flags, capped max-age, extension directives without injection
-- [ ] Command line
+- [x] Pin the ground truth: RFC 6797, RFC 9110, RFC 9111, RFC 2616, hstspreload.org, the hstspreload header checker, the Chromium header parser
+- [x] Grammar-driven scanner with offsets: tokens, quoted strings, implied whitespace, recovery
+- [x] Two reading modes: strict (the RFC 6797 processing model) and tolerant (recover the intent)
+- [x] Linter: every finding with a code, a severity and an offset
+- [x] Preload eligibility checker (hstspreload.org header requirements)
+- [x] Safe builder: typed flags, capped max-age, extension directives without injection
+- [x] Command line
 - [ ] Contracts: pinned sources, README examples, typing, installed wheel
 - [ ] Docs and packaging: README, CHANGELOG, metadata, sdist contents
 - [ ] Gates: ruff format, ruff check, mypy --strict, pytest

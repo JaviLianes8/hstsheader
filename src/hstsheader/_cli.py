@@ -1,0 +1,87 @@
+"""Command line: check a Strict-Transport-Security value or a response head, print JSON."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections.abc import Sequence
+
+from ._lint import analyse
+from ._model import Issue
+from ._preload import preload_issues
+
+EXIT_REJECTED = 1
+EXIT_USAGE = 2
+_FIELD = "strict-transport-security"
+
+
+def _fields_from_head(text: str) -> list[str] | None:
+    """Return the STS field lines of a response head, or None when text is a bare value."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    first = lines[0].strip()
+    if not first.upper().startswith("HTTP/") and not first.lower().startswith(_FIELD + ":"):
+        return None
+    values: list[str] = []
+    for line in lines:
+        name, sep, value = line.partition(":")
+        if sep and name.strip().lower() == _FIELD:
+            values.append(value.strip(" \t"))
+    return values
+
+
+def _issue(issue: Issue) -> dict[str, object]:
+    return {
+        "code": issue.code,
+        "severity": issue.severity,
+        "offset": issue.offset,
+        "message": issue.message,
+    }
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command line; returns the process exit code."""
+    parser = argparse.ArgumentParser(
+        prog="hstsheader",
+        description="Check a Strict-Transport-Security value, or the response head read from "
+        "standard input (for example the output of curl -sI). Prints the policy and the "
+        "findings as JSON. Exit status 0 means browsers honour the header (and, with "
+        "--preload, that it meets the preload list rules), 1 that it does not, 2 a usage error.",
+    )
+    parser.add_argument("value", nargs="?", help="a Strict-Transport-Security field value")
+    parser.add_argument(
+        "--preload", action="store_true", help="also check the hstspreload.org requirements"
+    )
+    args = parser.parse_args(argv)
+    # Latin-1 keeps every octet of a raw head, obs-text included.
+    text = args.value if args.value is not None else sys.stdin.buffer.read().decode("latin-1")
+    fields = _fields_from_head(text)
+    if fields is None:
+        fields = [text.strip(" \t\r\n")]
+    if not fields:
+        print("hstsheader: no Strict-Transport-Security field in the input", file=sys.stderr)
+        return EXIT_USAGE
+    analysis = analyse(fields)
+    policy = None
+    if analysis.max_age is not None:
+        policy = {
+            "max_age": analysis.max_age,
+            "include_subdomains": analysis.include_subdomains,
+            "preload": analysis.preload,
+        }
+    report: dict[str, object] = {
+        "field": fields[0],
+        "honoured": not analysis.errors,
+        "policy": policy,
+        "issues": [_issue(issue) for issue in analysis.issues],
+    }
+    ok = not analysis.errors
+    if args.preload:
+        found = [i for i in preload_issues(fields) if i.code.startswith("preload.")]
+        preloadable = ok and not any(i.severity == "error" for i in found)
+        report["preloadable"] = preloadable
+        report["preload_issues"] = [_issue(issue) for issue in found]
+        ok = preloadable
+    json.dump(report, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    return 0 if ok else EXIT_REJECTED
