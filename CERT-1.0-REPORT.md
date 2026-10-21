@@ -31,7 +31,7 @@ Progress:
 | 6 | Contract tests of every public name | PASS |
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
-| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28 |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28; a traceback on unreadable standard input (lens c, round 4) fixed in 103a25a |
 | 10 | Supported Pythons | PASS (last run at 7633c28): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
 | 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-21 |
@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 3 killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 4 killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -206,8 +206,8 @@ At 6b6075e on Elena's PC (CPython 3.14) from a fresh clone, each command on its 
 the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
 `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
 `mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. After the
-QA rounds the gates were run again at f22e655, 0687e52 and 7633c28; see Rounds 1 to 3
-below.
+QA rounds the gates were run again at f22e655, 0687e52, 7633c28 and 589a944; see Rounds
+1 to 4 below.
 
 ## QA lenses (item 19)
 
@@ -345,6 +345,49 @@ Verification at 7633c28:
   the guide on quoted strings, line wrapping); `tests/test_docs.py` and
   `tests/test_contract_api.py` pass on it, and the four gate commands exit 0.
 
+### Round 4
+
+Lenses b, c, d and e checked 370723f (lens a was not rerun this round). Lenses b, d and
+e found the same defect from three sides (N1), lens c one new defect (C4), and lens e
+three surviving mutants of `_checker.py` (N2 to N4); lens c and lens e confirmed every
+earlier finding fixed. Every finding is fixed in 103a25a and 589a944; none is disputed.
+
+| Lens | Id | Severity | Finding | Fix | Contract |
+| --- | --- | --- | --- | --- | --- |
+| b, d, e | N1 | medium | `preload.misread` trimmed and folded Python characters, but the checker reads the octets as UTF-8: with the head decoded as latin-1 (the command line, and the GUIDE advice), the octets `C2 A0`, `C2 85`, `E2 80 80` or `E3 80 80` before `max-age` inside a quoted value were missed (preloadable, exit 0, the checker refuses: B1, B2), the same before `preload` or the long s `C5 BF` in `includeSubDomains` were missed (B3, B4), and a lone `A0` or `85`, which Go keeps as invalid UTF-8, gave a false misread (B5, B6) | `_checker.py` works on octets: a character up to U+00FF is its latin-1 octet, one above stands for its UTF-8 octets; pieces are trimmed by matching the UTF-8 forms of Go's `unicode.IsSpace` set (an invalid octet is never a space), the names are compared on the UTF-8 reading with the long s folded, and octet offsets map back to characters. GUIDE, CHANGELOG and the `preload_issues` docstring describe the octet reading; the oracle driver (`tests/oracle/main.go`) now takes each header as hex octets, so octets that are not UTF-8 reach the checker unchanged | `tests/test_qa_round4.py` (B1 to B6, every Go space and the code points around them, lone octets, the long s, characters above U+00FF, offsets inside a run of them), `tests/test_qa_round4_cli.py` (B1 and B5 by subprocess), `tests/test_oracle_octets.py` (the checker on the same octets for every case); the oracle corpus gains UTF-8 spaces, the long s and lone octets; the round 3 test that pinned the character reading of `\xa0` and `\x85` now uses their UTF-8 octets |
+| c | C4 | medium | standard input open but unreadable (a write-only file) made the command line crash with `OSError` and exit 1, the "not honoured" status | the read is guarded: `OSError` or `ValueError` takes the usage error path (exit 2, one line, no traceback); GUIDE and CHANGELOG | `test_standard_input_that_cannot_be_read_is_a_usage_error` (subprocess with a write-only file as stdin) |
+| e | N2 | low | the bounds of the Go space set were unpinned (K04, K05, K20 survived) | | every member and its nearest non-members on both sides, as UTF-8 octets, in `tests/test_qa_round4.py` and against the checker in `tests/test_oracle_octets.py` |
+| e | N3 | low | the right trim of a piece was unpinned (K12) | | `test_space_after_the_name_is_trimmed`, `test_every_go_space_in_utf8_is_trimmed_after_the_name` |
+| e | N4 | low | the long s fold was unpinned (K06, K15); the Kelvin entry was dead (K07) | Kelvin entry removed: an exhaustive run of Go's `strings.EqualFold` and `strings.ToLower` over every code point shows the long s is the only non-ASCII character folding to a letter of `preload` or `includeSubDomains`, and none lowers to one of `max-age=` | `test_the_long_s_in_utf8_folds_to_s`, `test_the_long_s_counts_as_s_outside_a_quote_too`, `test_a_character_above_latin1_stands_for_its_utf8_octets` |
+
+Every new test was run on 370723f first: the B1 to B6 tests, the Go space tests for
+every member outside SP and HTAB, the lone `85` and `A0` octet tests, the long s tests,
+the above-latin-1 test, the three command line tests and both checker tests failed
+there. The reviewers' byte probe (`bytes_probe.py`, the checker on raw octets) gives at
+589a944 the checker's verdict for B1 to B6 through the API and the command line.
+
+Mutants of the new `_checker.py`, each applied alone and run against the round 3 and
+round 4 contracts with the checker: the lens e survivors K04 (no non-ASCII spaces), K05
+(U+200A dropped), K20 (U+000E added), K12 (no right trim) and K06 (no long s fold), and
+the character reading of N1 again, U+0085 dropped, U+3000 dropped, the right trim one
+octet short, the offset map ignoring runs above U+00FF and the offset map counting
+octets inside such a run are all killed (the last by a test added for it, a piece that
+ends inside such a run). Decoding a piece with U+FFFD for invalid octets instead of
+rejecting it survives and is equivalent: a piece with U+FFFD equals neither name, as a
+piece that fails to decode.
+
+Performance stays linear: 640,000 characters of U+3000 in one quoted value take 0.2 s
+in the misread check, a run of 600,000 of them followed by 100,000 `;preload` pieces
+0.8 s, and on the round 3 shapes the whole of `preload_issues` keeps its time
+(`tests/test_hostile.py` within a second of 370723f on this PC).
+
+Verification at 589a944 on Elena's PC (CPython 3.14.2) from a fresh clone with the
+fetched sources and the checker built from `tests/oracle` (hex input): `pytest` 543
+passed and 3 skipped (the two e2e tests, which need `HSTSHEADER_E2E` and PyPI, and the
+mypy consumer test, mypy not installed there). On this PC `ruff format --check .`,
+`ruff check .`, `mypy --strict src` and `mypy --strict src tests` exit 0, and the
+mypy consumer test passes.
+
 ### Disputed findings
 
-None in rounds 1, 2 and 3.
+None in rounds 1 to 4.
