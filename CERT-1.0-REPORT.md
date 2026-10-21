@@ -31,7 +31,7 @@ Progress:
 | 6 | Contract tests of every public name | PASS |
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
-| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655 |
 | 10 | Supported Pythons | PASS: CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
 | 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-21 |
@@ -205,3 +205,57 @@ the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
 `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
 `mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. Since then
 only this report changed.
+
+## QA lenses (item 19)
+
+### Round 1
+
+Five independent lenses checked c8a317c. Lens d found only F1 below, lens a four findings,
+lens b three, lens c one and lens e six surviving mutants. Every finding is fixed in
+f22e655; no finding is disputed.
+
+| Lens | Id | Severity | Finding | Fix | Contract |
+| --- | --- | --- | --- | --- | --- |
+| a | A1 | medium | `typing.get_type_hints(Issue)` raised `NameError`: `Severity` was private and the class reports `hstsheader` as its module | `Severity` exported and listed in `__all__` (eleven names), documented with an example in the package docstring | `test_type_hints_resolve_on_every_public_class_and_function`, `test_the_severity_type_is_public` |
+| a | A2 | low | README documented `lint(header)`, the parameter was `value` | parameter renamed to `header`, like the other readers; in the CHANGELOG and the GUIDE upgrade note | `test_lint_takes_its_argument_as_header`, signature pin |
+| a | A3 | low | `parse(strict=...)` read any value by truthiness | `TypeError` for a `strict` that is not a `bool` | `test_strict_must_be_a_bool` |
+| a | A4 | low | README said empty input exits 2; an empty argument exits 1 | README says "empty standard input"; the GUIDE states both cases | doc only |
+| b | F1 | medium | the command line checked the last response of a redirect chain | the first final response is checked (1xx and a proxy's `Connection established` skipped); README, GUIDE and docstring reasons corrected | `test_the_first_response_of_a_redirect_chain_is_checked` and three more in `tests/test_qa_round1_cli.py` |
+| b | F2 | medium | `preload=yes` was an RFC 6797 error, but RFC 6797 does not define `preload` | a value on `preload` is the warning `preload-value` (strict parsing accepts it, `preload` false); `preload_issues` reports the error `preload.invalid`, as the hstspreload.org checker does; `value-not-allowed` is for `includeSubDomains` only | `test_a_value_on_preload_is_an_unknown_directive_to_rfc_6797`, `test_a_value_on_preload_is_refused_by_the_preload_rules`, the fuzz acceptor updated |
+| b | F3 | low | the 2^31 cap was credited to RFC 9111 more strongly than it says | README, GUIDE, package docstring and the `max-age.too-large` message present it as this library's cap, by analogy with RFC 9111 | `test_the_sender_ceiling_is_presented_as_this_library_choice` |
+| c | F1 | high | skipping broken directives was quadratic for a backslash before a quote outside a quoted string (`a=\";` repeated) | new `_skip.py`: the skip remembers the outcome of the quoted-string reader per index, so each index is read once; differential check against the old skip on 280,602 calls over 60,000 random strings gave no difference; `a=\";` x 80,000 (400 KB) lints in 0.6 s | four new shapes in `tests/test_hostile.py` |
+| d | F1 | low | a reader closing the pipe early gave a traceback and exit 1 | the write catches `BrokenPipeError` and Windows `EINVAL`, sends the rest to the null device, and the exit status keeps the verdict | `test_a_closed_output_pipe_keeps_the_verdict`, `test_a_reader_that_stops_early_gets_no_traceback` (subprocess) |
+| e | F1-M14 | medium | obs-text after a backslash not pinned | | `test_obs_text_may_follow_a_backslash_in_a_quoted_string`, `test_del_and_non_latin_1_cannot_follow_a_backslash` |
+| e | F2-M19 | medium | offsets after a fold not pinned | | `test_offsets_after_a_folded_line_point_at_the_input` |
+| e | F3-M21 | medium | NUL read as SP not pinned | | `test_a_nul_is_reported_once_and_read_as_whitespace` |
+| e | F6-M75 | medium | `honoured` for a header with warnings only not pinned | | `test_a_header_with_only_warnings_is_honoured` |
+| e | F4-M38 | low | `max-age.zero-subdomains` condition not pinned | | `test_the_zero_max_age_warning_needs_a_max_age_of_zero` |
+| e | F5-M45 | low | `bytearray` and `memoryview` refusal not pinned | | `test_binary_input_is_a_type_error_with_the_decode_hint` |
+
+Every behaviour test in `tests/test_qa_round1.py` and `tests/test_qa_round1_cli.py` was
+run against c8a317c first and failed there (22 failures); the lens e contracts pin
+behaviour that was already right and passed there, as a contract against a mutant should.
+The new hostile shapes were timed on c8a317c instead of run to their 300 s limit:
+`a=\";` x 1,000 took 0.49 s and x 2,000 took 2.0 s.
+
+Behaviour changes are in the CHANGELOG under 1.0.0 (Changed, Fixed, Added) and the GUIDE
+upgrade note.
+
+Verification at f22e655:
+
+- On Elena's PC (CPython 3.14.2) from a fresh clone with the fetched sources and the
+  hstspreload checker: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+  `mypy --strict src tests` and `pytest` exit 0 (386 passed, 2 skipped: the two e2e
+  tests, run next). Then with `HSTSHEADER_E2E=1` and `HSTSHEADER_E2E_PYPI=1`:
+  `tests/test_e2e_wheel.py` and `tests/test_qa_round1_cli.py`, 12 passed.
+- On this PC, wheel and sdist built from a fresh clone, `twine check --strict` PASSED, the
+  wheel holds `_skip.py`; the sdist's suite with `src` removed, against the installed
+  wheel and with the checker: 377 passed and 2 skipped (e2e) on CPython 3.10.19, 3.11.5,
+  3.12.12, 3.13.2, 3.14.2 and 3.14.2t, 9 doctests each; 3.8.20 and 3.9.25 refuse the wheel.
+- The reviewers' command line repros: the redirect head exits 1 with field
+  `max-age=300`; `| head -n 1` on a large report gives statuses `0 0 0` and an empty
+  stderr; `hstsheader ""` exits 1 and empty standard input exits 2.
+
+### Disputed findings
+
+None in round 1.
