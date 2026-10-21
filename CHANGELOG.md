@@ -47,8 +47,6 @@ change.
   or value, followed by its length; 0.2.0 quoted the whole of it, megabytes included.
 - `Hsts`, `Issue` and `HstsError` report `hstsheader` as their module, so `repr`,
   tracebacks and pickles name the public path instead of a private module.
-- `HstsError` keeps `code` and `offset` through `pickle` and `copy` (0.2.0 reset them
-  to `invalid` and `None`).
 - A `str` subclass passed to `parse`, `lint` or the preload checks is read as a plain
   `str`.
 - `preload_issues` no longer warns `preload.max-age-over-ten-years` for a `max-age` the
@@ -57,6 +55,23 @@ change.
 - When tolerant `parse` finds no usable `max-age` because the `max-age` directive breaks
   the grammar, the error is that directive's syntax error; 0.2.0 could report an
   unrelated earlier error such as a repeated unknown directive.
+- `preload_issues` and `is_preloadable` (and `--preload`) report the new error
+  `preload.misread` where the hstspreload.org checker reads a directive the header does
+  not have: it cuts the header at every `;`, quoted strings included, and takes any name
+  that starts with `max-age` for `max-age`. Headers such as
+  `max-age=31536000; includeSubDomains; preload; max-agex=5`, or a `report-uri` whose
+  quoted value holds `;max-age=2`, were called preloadable and the checker refuses them.
+  Found by running the checker.
+- `parse`, `lint` and the preload checks refuse field lines given as a set, a frozenset
+  or a dict's keys or items view with `TypeError`: without an order, the line read first
+  depended on the hash seed.
+- They take at most two items from an iterable of field lines, the second only to know
+  that there is more than one, so a generator is no longer read to its end (an endless
+  one never returned). The `multiple-fields` message no longer gives the number of lines,
+  and items after the second are no longer checked for type.
+- In a response head on the command line, a line of only spaces or tabs no longer ends
+  the head: as RFC 9112 reads it, it is obsolete line folding that continues the field
+  line before it, so a Strict-Transport-Security field after it is found.
 
 ### Fixed
 
@@ -65,17 +80,23 @@ change.
 - Skipping broken directives took time quadratic in the input when a backslash came
   before a double quote outside a quoted string (`a=\";` repeated): an 80 KB value took
   two minutes. It is linear now.
-- `typing.get_type_hints(Issue)` raised `NameError`, so tools that resolve dataclass
-  hints failed on it.
 - The command line printed a traceback and exited 1 when the reader of its output
   stopped early (`| head`); it now stops quietly and the exit status still gives the
   verdict. Started with standard output closed, it no longer fails with a traceback
   and exit status 1 either.
+- Started with standard input closed and no value, the command line printed a traceback
+  and exited 1, the status that means "not honoured"; it is a usage error now (exit
+  status 2), as for a terminal.
 
 ### Added
 
 - `hstsheader --version`.
 - `Severity`, the type of `Issue.severity` (`Literal["error", "warning"]`).
+- Typing overloads for `build`, so a type checker reports flags passed next to an
+  `Hsts`, a call that always raises `TypeError`. The runtime signature is unchanged; a
+  flag left as `None` means not given, as documented now.
+- The `HstsError` constructor and its default code `invalid`, which this library never
+  raises, are documented.
 - Every public name has a docstring with an example that runs as a test.
 
 ## [0.2.0] - 2026-10-19
@@ -109,7 +130,9 @@ change.
   above 2147483648.
 - `bytes` input raises a `TypeError` that says to decode it first.
 
-## [0.1.0]
+## [0.1.0] - 2026-10-12
+
+Not published on PyPI.
 
 - Add `parse` to read a Strict-Transport-Security header into a typed `Hsts` object.
 - Add `build` to render a header value from a max-age and optional flags.

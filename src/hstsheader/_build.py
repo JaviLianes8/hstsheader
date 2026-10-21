@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import overload
 
 from ._chars import ascii_lower, is_sendable, is_token, quote, shorten
 from ._model import Hsts, HstsError
@@ -39,6 +40,26 @@ def _extension(name: object, value: object, seen: set[str]) -> str:
     return f"{name}={quote(value)}"
 
 
+@overload
+def build(
+    max_age: int,
+    *,
+    include_subdomains: bool | None = None,
+    preload: bool | None = None,
+    extensions: Mapping[str, str | None] | None = None,
+) -> str: ...
+
+
+@overload
+def build(
+    max_age: Hsts,
+    *,
+    include_subdomains: None = None,
+    preload: None = None,
+    extensions: Mapping[str, str | None] | None = None,
+) -> str: ...
+
+
 def build(
     max_age: int | Hsts,
     *,
@@ -50,6 +71,9 @@ def build(
 
     Pass an :class:`Hsts`, or ``max_age`` (an ``int`` from 0 to
     :data:`DELTA_SECONDS_MAX`) with the ``include_subdomains`` and ``preload`` flags.
+    A flag left as ``None`` is not given: ``False`` next to an ``int``; next to an
+    :class:`Hsts` the flags come from it, and passing one raises ``TypeError`` (the
+    overloads let a type checker report that too).
     ``extensions`` maps further directive names (HTTP tokens other than the three known
     ones) to a value, or to ``None`` for a valueless directive; values that are not
     tokens are written as quoted strings, and control or non-ASCII characters are

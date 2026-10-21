@@ -43,16 +43,23 @@ directive-value           = token | quoted-string
   the digits, so a value of a million digits is cheap.
 - `parse`, `lint` and `preload_issues` take one field value, or the field lines of a
   response in order; only the first line counts (RFC 6797 section 8.1), and more than one
-  line adds a `multiple-fields` warning. An empty list is a `field.missing` error.
+  line adds a `multiple-fields` warning. An empty list is a `field.missing` error. At
+  most two items are taken from an iterable (the second only shows there is more than
+  one), so a generator is never drained. A set, a frozenset or a dict's keys or items
+  view raises `TypeError`: it has no order, so its first line would depend on chance.
 - `bytes` raises `TypeError`: decode a raw head with latin-1 first, which keeps every
   octet.
 
 **Strict reading** (`parse(value, strict=True)`) raises `HstsError` for the first finding
-of severity `error`, with its code and offset. Strict acceptance is exactly what a user
-agent following RFC 6797 honours: the grammar above, every directive at most once, a
-`max-age` with digits, no value on `includeSubDomains`, no CR, LF or NUL. RFC 6797 does
-not define `preload`, so `preload=yes` is an unknown directive to it: strict reading
-accepts the header with `preload` false, and lint warns `preload-value`.
+of severity `error`, with its code and offset. Strict acceptance is what a user agent
+following RFC 6797 honours, with quoted strings read by RFC 9110: the grammar above,
+every directive at most once, a `max-age` with digits, no value on `includeSubDomains`,
+no CR, LF or NUL. RFC 6797 cites the older RFC 2616 grammar, and where the two differ a
+user agent that keeps to RFC 2616 may accept what strict reading (and lint, as an error)
+refuses: chiefly a backslash before a control character, which the RFC 2616 quoted-pair
+allows and the RFC 9110 one, followed here, does not.
+RFC 6797 does not define `preload`, so `preload=yes` is an unknown directive to it:
+strict reading accepts the header with `preload` false, and lint warns `preload-value`.
 
 **Tolerant reading** (the default) skips a directive that breaks the grammar up to the
 next `;` outside a quoted string, keeps the first `max-age` that reads, and sets a flag
@@ -64,10 +71,13 @@ succeeds, tolerant reading returns the same policy.
 ## Errors
 
 `HstsError` is a `ValueError`. Its `offset` indexes the field value (the first field
-line), or is `None`. Besides the lint codes, `Hsts` and `build` use:
+line), or is `None`. Your own code may raise one too: `HstsError(message, *,
+code="invalid", offset=None)` keeps both attributes and appends ` (at offset N)` to the
+message when an offset is given. Besides the lint codes, these codes are used:
 
 | Code | Raised when |
 | --- | --- |
+| `invalid` | never by this library: the default code of an `HstsError` made without one |
 | `max-age.negative` | `max_age` is below 0 |
 | `max-age.too-large` | `max_age` is above 2147483648, the cap this library applies |
 | `build.name` | an extension name is not a token, or is one of the three known names |
@@ -78,7 +88,10 @@ An argument of the wrong type raises `TypeError`, never `HstsError`: a `max_age`
 not an `int` (a `bool` included), a flag that is not a `bool` (the `strict` argument of
 `parse` included), `extensions` that is not a mapping, a name that is not a `str`, a
 value that is neither `str` nor `None`, flags passed next to an `Hsts`, and input to the
-readers that is not text (`bytes`, `bytearray` and `memoryview` included). `str` and
+readers that is not text (`bytes`, `bytearray` and `memoryview` included) or that has no
+order (a set). A flag of `build` left as `None`, its default, is not given: `False` next
+to an `int` `max_age`; next to an `Hsts` only `None` is allowed, and the overloads of
+`build` let a type checker report any other flag there. `str` and
 `int` subclasses are copied to plain values before they are checked, so they cannot
 change what is written.
 
@@ -98,10 +111,21 @@ strictly in others, so the result combines both:
   appears only for a `max-age` the site can read. A `preload` with a value is the
   warning `preload.invalid`, as on the site, and it does not count as `preload`, so
   without a bare `preload` the header fails with `preload.missing`.
+- The site's checker cuts the header at every `;`, inside quoted strings too, trims each
+  piece with Go's `strings.TrimSpace` (which also removes CR, LF, NEL and no-break
+  spaces), takes a piece for `max-age` when it starts with `max-age`, and for `preload`
+  or `includeSubDomains` when it equals the name, ignoring case. Each piece it takes for
+  one of these where RFC 6797 reads no such directive is the error `preload.misread`,
+  at the piece's offset: `max-agex=5`, or `note="a;max-age=2"`, would make the checker
+  refuse the header, and `note="x;preload;y"` would make it see a `preload` that
+  browsers do not.
 
 The tests run the site's checker on generated headers and hold two properties: every
-header `is_preloadable` accepts passes the checker, and for a header with no RFC error the
-two verdicts and the ten year warning agree.
+header `is_preloadable` accepts passes the checker, and for a header with no RFC error
+and no `preload.misread` the two verdicts and the ten year warning agree. A misread
+header is refused here even when the checker would still take it (for example when the
+piece repeats a directive the header already has), because the checker is then not
+checking the header a browser sees.
 
 ## Command line
 
@@ -112,9 +136,12 @@ hstsheader --version
 
 With `VALUE`, that text is checked: a response head when its first non-empty line is a
 status line or a `name: value` field line, else a bare field value. Without it, standard
-input is read as latin-1 the same way. In a head, folded lines are joined, and every
-Strict-Transport-Security line of the first final response is passed on, the first one
-counting. Interim responses (1xx) and a proxy's `200 Connection established` are not
+input is read as latin-1 the same way. A head ends at an empty line; a line of only
+spaces or tabs is obsolete line folding (RFC 9112 `obs-fold`), a continuation of the
+field line before it, not the end of the head. Without standard input at all (started
+with it closed) and no `VALUE`, it is a usage error. In a head, folded lines are joined,
+and every Strict-Transport-Security line of the first final response is passed on, the
+first one counting. Interim responses (1xx) and a proxy's `200 Connection established` are not
 final. With several responses (`curl -sIL` follows redirects) the first is the answer
 for the URL that was asked for: RFC 6797 section 8.1 has a browser apply the header of
 each response, redirects included, to the host that sent it, and hstspreload.org reads
@@ -154,6 +181,8 @@ Code may need a change in these places:
   and the preload check reports it as the warning `preload.invalid`.
 - Piping `curl -sIL` into the command line: the first final response is checked, not
   the last, and when only a later response has the field the exit status is 1.
+- Passing the field lines as a set, a frozenset or a dict's keys or items view: it
+  raises `TypeError` now; pass a list or a tuple in the order the lines arrived.
 
 The other changes in the
 [changelog](https://github.com/JaviLianes8/hstsheader/blob/main/CHANGELOG.md) make

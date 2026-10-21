@@ -71,7 +71,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--preload", action="store_true", help="also check the hstspreload.org requirements"
     )
     args = parser.parse_args(argv)
-    if args.value is None and sys.stdin.isatty():
+    # Started with standard input closed (None) there is nothing to read: as for a terminal.
+    if args.value is None and (sys.stdin is None or sys.stdin.isatty()):
         parser.error("give a value, or pipe a response head (curl -sI URL | hstsheader)")
     # Latin-1 keeps every octet of a raw head, obs-text included.
     text = args.value if args.value is not None else sys.stdin.buffer.read().decode("latin-1")

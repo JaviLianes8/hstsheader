@@ -144,6 +144,7 @@ def test_every_documented_preload_code_is_produced() -> None:
         "max-age=1; preload",
         "max-age=1; includeSubDomains",
         "max-age=31536000; includeSubDomains; preload=1",
+        "max-age=31536000; includeSubDomains; preload; max-agex",
     ):
         for issue in preload_issues(header):
             if issue.code.startswith("preload."):

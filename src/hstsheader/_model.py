@@ -22,7 +22,10 @@ class HstsError(ValueError):
     ``code`` names the rule that failed (the same codes as :class:`Issue`, plus
     ``max-age.negative``, ``max-age.too-large``, ``build.name`` and ``build.value`` from
     :class:`Hsts` and :func:`build`) and ``offset`` is the index in the field value where
-    it failed, or ``None``. Messages quote at most 40 characters of the input.
+    it failed, or ``None``. Messages quote at most 40 characters of the input. Code that
+    raises one itself calls ``HstsError(message, *, code="invalid", offset=None)``:
+    ``invalid`` is only that default, never raised by this library, and an offset is
+    appended to the message.
 
     >>> from hstsheader import HstsError, parse
     >>> try:
@@ -51,10 +54,10 @@ class Issue:
     """One finding about a header value.
 
     ``code`` is stable and listed in the README; ``message`` is for people and may be
-    reworded. An ``error`` means a user agent that follows RFC 6797 ignores the whole
-    header; a ``warning`` marks something legal that is likely a mistake or is refused
-    by some checkers. ``offset`` indexes the field value, or is ``None`` for a finding
-    about the header as a whole.
+    reworded. An ``error`` means a user agent that follows RFC 6797, reading quoted
+    strings by RFC 9110, ignores the whole header; a ``warning`` marks something legal
+    that is likely a mistake or is refused by some checkers. ``offset`` indexes the field
+    value, or is ``None`` for a finding about the header as a whole.
 
     >>> from hstsheader import lint
     >>> lint("max-age=600; foo")

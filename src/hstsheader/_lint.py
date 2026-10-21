@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
+from itertools import islice
 
 from ._chars import DIGITS, shorten
 from ._model import DELTA_SECONDS_MAX, Issue
@@ -40,6 +41,9 @@ class Analysis:
     max_age_broken_at: int | None = None
     # A preload directive carried a value: ignored by RFC 6797, a warning on hstspreload.org.
     preload_valued: bool = False
+    # The field line read, and (offset, lower-cased name) of every directive in it.
+    text: str = ""
+    names: tuple[tuple[int, str], ...] = ()
 
     @property
     def errors(self) -> tuple[Issue, ...]:
@@ -96,7 +100,10 @@ def _first_field(value: str | Iterable[str]) -> tuple[str | None, int]:
         return str.__str__(value), 1
     if isinstance(value, Mapping) or not isinstance(value, Iterable):
         raise TypeError(f"pass a str or a list of str, got {type(value).__name__}")
-    fields = list(value)
+    if isinstance(value, Set):  # a set (dict keys and items included) has no field order
+        raise TypeError(f"field lines need an order; got a {type(value).__name__}")
+    # Two items tell whether there is more than one line; never pull a long source to its end.
+    fields = list(islice(value, 2))
     for item in fields:
         if not isinstance(item, str):
             raise TypeError(f"field lines must be str, got {type(item).__name__}")
@@ -111,7 +118,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     found = scan(text)
     issues = list(found.issues)
     if count > 1:
-        message = f"{count} field lines; a user agent processes only the first (RFC 6797 8.1)"
+        message = "more than one field line; a user agent processes only the first (RFC 6797 8.1)"
         issues.append(Issue("multiple-fields", message, "warning"))
     # Broken directives count for repeats too, in the order they appear.
     order: list[tuple[int, str, Directive | None]] = [
@@ -167,6 +174,8 @@ def analyse(value: str | Iterable[str]) -> Analysis:
         frozenset(soft),
         next((offset for offset, key in found.broken if key == "max-age"), None),
         preload_valued,
+        text,
+        tuple((offset, key) for offset, key, _ in order),
     )
 
 
@@ -175,8 +184,8 @@ def lint(header: str | Iterable[str]) -> tuple[Issue, ...]:
 
     Pass one field value, or every field line of a response (only the first is
     processed, as RFC 6797 section 8.1 requires). Findings with severity ``error`` mean a
-    user agent that follows RFC 6797 ignores the header; an empty tuple means a clean
-    header. Chromium is more lenient in places (see the README).
+    user agent that follows RFC 6797 (quoted strings by RFC 9110) ignores the header; an
+    empty tuple means a clean header. Chromium is more lenient in places (see the README).
 
     >>> from hstsheader import lint
     >>> [(i.severity, i.code, i.offset) for i in lint("max-age=010; includeSubDomains=1;")]

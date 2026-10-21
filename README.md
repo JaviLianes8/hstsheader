@@ -80,8 +80,11 @@ for issue in lint('max-age="031536000"; includeSubDomains=yes;'):
 # warning empty-directive 42
 ```
 
-An `error` means a user agent that follows RFC 6797 ignores the whole header. A
-`warning` marks something legal that is likely a mistake or that some checkers refuse.
+An `error` means a user agent that follows RFC 6797 ignores the whole header, with quoted
+strings read by the RFC 9110 rules (the
+[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#reading-a-value) has
+the one difference from older rules). A `warning` marks something legal that is likely a
+mistake or that some checkers refuse.
 Offsets index the field value; an empty directive points at its semicolon.
 
 | Code | Severity | Meaning |
@@ -123,8 +126,11 @@ The rules are the header requirements on hstspreload.org: `includeSubDomains` an
 stricter than RFC 6797 about how `max-age` is written and treats `max-age=0` as a
 removal request. RFC errors are included, except a repeated directive other than
 `max-age` and `includeSubDomains`, which the site only warns about and which comes back
-as a warning. The site also checks redirects, certificates and subdomains over the
-network; that part is out of scope here.
+as a warning. The site's checker also cuts the header at every `;`, even inside a quoted
+string, and takes any name that starts with `max-age` for `max-age`; where that makes it
+see a `max-age`, `includeSubDomains` or `preload` that RFC 6797 does not, the header is
+refused with `preload.misread`. The site also checks redirects, certificates and
+subdomains over the network; that part is out of scope here.
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
@@ -135,6 +141,7 @@ network; that part is out of scope here.
 | `preload.max-age-quoted` | error | a quoted `max-age`, which the site's checker refuses |
 | `preload.max-age-spaced` | error | space around the `=` of `max-age` |
 | `preload.max-age-unreadable` | error | a `max-age` above 2^64 - 1 |
+| `preload.misread` | error | the site's checker reads a directive that is not there, such as `max-agex` or a `;` inside quotes |
 | `preload.max-age-over-ten-years` | warning | a `max-age` above ten years |
 | `preload.invalid` | warning | `preload` with a value, which does not count as `preload` |
 
@@ -149,8 +156,9 @@ print(build(Hsts(600, preload=True), extensions={"report-uri": "https://example.
 # max-age=600; preload; report-uri="https://example.com/r;1"
 ```
 
-Flags must be `bool` and `max_age` an `int` (else `TypeError`), from 0 to 2147483648
-(else `HstsError`). Extension names must be HTTP tokens and cannot repeat or shadow the
+Flags must be `bool`, or `None` (the default) for not given, and `max_age` an `int` (else
+`TypeError`), from 0 to 2147483648 (else `HstsError`). An `Hsts` carries its own flags:
+passing one next to it raises `TypeError`, and a type checker reports that call too. Extension names must be HTTP tokens and cannot repeat or shadow the
 three known directives; values that are not tokens are quoted, and control or non-ASCII
 characters raise `HstsError`, so a value cannot smuggle a second header line. For every
 valid policy, `parse(build(policy), strict=True) == policy`.
@@ -170,8 +178,8 @@ The exit status is 0 when a user agent following RFC 6797 honours the header (wi
 `--preload`: when it meets the preload rules), 1 when it does not, and 2 when no
 response in the input has a Strict-Transport-Security field (empty standard input
 included). A head ends at
-its blank line, folded lines are joined and pasted fields without a status line are
-accepted. With several responses (`curl -sIL`) the first final one is checked, the
+its empty line, folded lines are joined (a line of only spaces or tabs is a fold, not the
+end of the head) and pasted fields without a status line are accepted. With several responses (`curl -sIL`) the first final one is checked, the
 answer for the URL you asked for: a browser applies each response's header to the host
 that sent it, and hstspreload.org reads the header on the base domain's own response,
 not on the page it redirects to. Interim (1xx) responses and a proxy's `Connection
@@ -182,10 +190,12 @@ it on that URL.
 
 ## Where Chromium differs
 
-This library follows RFC 6797. Chromium's parser is more lenient in one way and stricter
-in one: it accepts a repeated directive other than `max-age` and `includeSubDomains`
-(so a repeated `preload` still works there), and it stores at most one year of `max-age`
-whatever the header says.
+This library follows RFC 6797. Chromium's parser, as its source reads, is more lenient in
+two ways and stricter in one: it accepts a repeated directive other than `max-age` and
+`includeSubDomains` (so a repeated `preload` still works there); it accepts any
+character inside a quoted string, control characters and DEL included, and any
+character after a backslash there, where this library follows the RFC 9110 rules; and it
+stores at most one year of `max-age` whatever the header says.
 
 ## API
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ._checker import misreads
 from ._lint import Analysis, analyse
 from ._model import PRELOAD_MIN_MAX_AGE, Hsts, Issue
 
@@ -32,6 +33,7 @@ def _form_issues(analysis: Analysis) -> list[Issue]:
     if analysis.max_age_beyond_uint64:
         message = "hstspreload.org cannot read a max-age above 2^64 - 1"
         issues.append(Issue("preload.max-age-unreadable", message, "error"))
+    issues += misreads(analysis.text, dict(analysis.names))
     return issues
 
 
@@ -46,7 +48,10 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
     2^64 - 1). A ``preload`` with a value does not count as ``preload`` and is a
     warning, as on the site, and so is a ``max-age`` above ten years written that way.
-    An empty tuple or warnings only means the header qualifies.
+    The site's checker cuts the header at every ';', quoted strings included, and takes
+    any name starting with ``max-age`` for it: a piece it reads as max-age,
+    includeSubDomains or preload where RFC 6797 reads no such directive is the error
+    ``preload.misread``. An empty tuple or warnings only means the header qualifies.
 
     >>> from hstsheader import Hsts, preload_issues
     >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]

@@ -103,10 +103,15 @@ def test_source_files_stay_under_two_hundred_lines() -> None:
 GUIDE = (ROOT / "GUIDE.md").read_text(encoding="utf-8")
 
 
+def _raise_a_caller_error() -> None:
+    raise hstsheader.HstsError("made by the caller")
+
+
 def test_every_build_error_code_in_the_guide_is_raised() -> None:
     section = GUIDE.split("## Errors\n", 1)[1].split("\n## ", 1)[0]
     documented = set(re.findall(r"^\| `([a-z.-]+)` \|", section, flags=re.MULTILINE))
     calls: dict[str, Callable[[], object]] = {
+        "invalid": _raise_a_caller_error,
         "max-age.negative": lambda: hstsheader.Hsts(-1),
         "max-age.too-large": lambda: hstsheader.build(2**31 + 1),
         "build.name": lambda: hstsheader.build(1, extensions={"preload": None}),

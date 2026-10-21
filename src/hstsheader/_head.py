@@ -14,7 +14,12 @@ _NOT_FINAL = re.compile(
 
 
 def _responses(lines: list[str]) -> list[list[str]]:
-    """Split lines into the heads of final responses, each ending at a blank line."""
+    """Split lines into the heads of final responses, each ending at an empty line.
+
+    A line of only spaces or tabs is not empty: in RFC 9112 the head ends at an empty
+    line, and such a line is obsolete line folding (OWS CRLF RWS), a continuation of the
+    field line before it.
+    """
     heads: list[list[str]] = []
     current: list[str] | None = None
     for line in lines:
@@ -22,7 +27,7 @@ def _responses(lines: list[str]) -> list[list[str]]:
             current = []
             if not _NOT_FINAL.match(line):
                 heads.append(current)
-        elif not line.strip(" \t"):
+        elif not line:
             current = None  # the head is over; a body may follow
         elif current is not None:
             current.append(line)

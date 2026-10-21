@@ -12,9 +12,10 @@ def parse(header: str | Iterable[str], *, strict: bool = False) -> Hsts:
     """Parse a Strict-Transport-Security header value.
 
     ``header`` is one field value, or the field lines of a response in order (only the
-    first is read, RFC 6797 section 8.1). Directive names match ASCII case-insensitively,
-    whitespace around ``;`` and ``=`` is allowed, unknown directives are ignored and
-    ``max-age`` may be quoted. Values above :data:`DELTA_SECONDS_MAX` are read as it.
+    first is read, RFC 6797 section 8.1; a set has no order and raises ``TypeError``).
+    Directive names match ASCII case-insensitively, whitespace around ``;`` and ``=`` is
+    allowed, unknown directives are ignored and ``max-age`` may be quoted. Values above
+    :data:`DELTA_SECONDS_MAX` are read as it.
 
     With ``strict=True`` the header must be one a conforming user agent honours: any
     finding of severity ``error`` from :func:`lint` raises :class:`HstsError` with its
