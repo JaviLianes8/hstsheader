@@ -7,6 +7,7 @@ import io
 import itertools
 import re
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import hstsheader
@@ -92,3 +93,32 @@ def test_no_em_dash_anywhere_in_the_tree() -> None:
 def test_source_files_stay_under_two_hundred_lines() -> None:
     for path in [*ROOT.joinpath("src").rglob("*.py"), *ROOT.joinpath("tests").rglob("*.py")]:
         assert len(path.read_text(encoding="utf-8").splitlines()) <= 200, path
+
+
+GUIDE = (ROOT / "GUIDE.md").read_text(encoding="utf-8")
+
+
+def test_every_build_error_code_in_the_guide_is_raised() -> None:
+    section = GUIDE.split("## Errors\n", 1)[1].split("\n## ", 1)[0]
+    documented = set(re.findall(r"^\| `([a-z.-]+)` \|", section, flags=re.MULTILINE))
+    calls: dict[str, Callable[[], object]] = {
+        "max-age.negative": lambda: hstsheader.Hsts(-1),
+        "max-age.too-large": lambda: hstsheader.build(2**31 + 1),
+        "build.name": lambda: hstsheader.build(1, extensions={"preload": None}),
+        "build.value": lambda: hstsheader.build(1, extensions={"x": "\t\x7f"}),
+        "duplicate": lambda: hstsheader.build(1, extensions={"a": None, "A": None}),
+    }
+    assert documented == set(calls)
+    for code, call in calls.items():
+        try:
+            call()
+        except hstsheader.HstsError as error:
+            assert error.code == code
+        else:
+            raise AssertionError(code)
+
+
+def test_the_guide_lists_the_command_line_keys_in_order() -> None:
+    section = GUIDE.split("## Command line\n", 1)[1].split("\n## ", 1)[0]
+    keys = re.findall(r"^\| `([a-z_]+)` \|", section, flags=re.MULTILINE)
+    assert keys == ["field", "honoured", "policy", "issues", "preloadable", "preload_issues"]
