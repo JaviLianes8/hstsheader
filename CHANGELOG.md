@@ -61,7 +61,10 @@ change.
   that starts with `max-age` for `max-age`. Headers such as
   `max-age=31536000; includeSubDomains; preload; max-agex=5`, or a `report-uri` whose
   quoted value holds `;max-age=2`, were called preloadable and the checker refuses them.
-  Found by running the checker.
+  Found by running the checker. Like the checker, the check reads the header's octets
+  as UTF-8: a character up to U+00FF is the octet a latin-1 decode made of it, so the
+  octets `C2 A0` are a no-break space the checker trims and a lone `A0` is an octet it
+  keeps, and the long s (`C5 BF`) matches `s`.
 - `parse`, `lint` and the preload checks refuse field lines given as a set, a frozenset
   or a dict's keys or items view with `TypeError`: without an order, the line read first
   depended on the hash seed.
@@ -86,7 +89,8 @@ change.
   and exit status 1 either.
 - Started with standard input closed and no value, the command line printed a traceback
   and exited 1, the status that means "not honoured"; it is a usage error now (exit
-  status 2), as for a terminal.
+  status 2), as for a terminal. So is standard input that is open but cannot be read,
+  such as a file opened for writing only, which also gave a traceback and exit status 1.
 
 ### Added
 

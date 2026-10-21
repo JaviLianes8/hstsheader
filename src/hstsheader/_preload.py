@@ -51,7 +51,9 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     The site's checker cuts the header at every ';', quoted strings included, and takes
     any name starting with ``max-age`` for it: a piece it reads as max-age,
     includeSubDomains or preload where RFC 6797 reads no such directive is the error
-    ``preload.misread``. An empty tuple or warnings only means the header qualifies.
+    ``preload.misread``. Like the checker, that check reads the octets as UTF-8, taking a
+    character up to U+00FF as the octet a latin-1 decode made of it. An empty tuple or
+    warnings only means the header qualifies.
 
     >>> from hstsheader import Hsts, preload_issues
     >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]

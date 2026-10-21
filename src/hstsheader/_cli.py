@@ -74,8 +74,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Started with standard input closed (None) there is nothing to read: as for a terminal.
     if args.value is None and (sys.stdin is None or sys.stdin.isatty()):
         parser.error("give a value, or pipe a response head (curl -sI URL | hstsheader)")
-    # Latin-1 keeps every octet of a raw head, obs-text included.
-    text = args.value if args.value is not None else sys.stdin.buffer.read().decode("latin-1")
+    text = args.value
+    if text is None:
+        try:
+            raw = sys.stdin.buffer.read()
+        except (OSError, ValueError):  # open but not readable, a write-only file for one
+            parser.error("standard input cannot be read; give a value or pipe a response head")
+        # Latin-1 keeps every octet of a raw head, obs-text included.
+        text = raw.decode("latin-1")
     heads = response_fields(text)
     if heads is None:
         bare = text.strip(" \t\r\n")

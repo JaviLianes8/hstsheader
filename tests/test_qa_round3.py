@@ -50,7 +50,8 @@ def test_directives_cut_out_of_a_quoted_string_are_misread() -> None:
     assert "includeSubDomains" in found[1].message
 
 
-@pytest.mark.parametrize("space", ["\xa0", "\x85", "\r\n ", " \t"])
+# No-break space and NEL as UTF-8 octets, read as latin-1 (a lone 0xA0 or 0x85 is kept).
+@pytest.mark.parametrize("space", ["\xc2\xa0", "\xc2\x85", "\r\n ", " \t"])
 def test_the_checker_trims_more_than_spaces_and_tabs(space: str) -> None:
     header = f'{GOOD}; note="a;{space}PRELOAD;b"'
     assert not any(i.severity == "error" for i in lint(header))

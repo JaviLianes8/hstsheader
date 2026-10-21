@@ -1,11 +1,13 @@
 // Command oracle runs the hstspreload.org header checker on header values.
 //
-// It reads a JSON array of strings on standard input and writes, for each value, the
-// policy the checker parsed and the codes of its errors and warnings, as a JSON array.
+// It reads a JSON array of header values on standard input, each one its octets in hex so
+// that octets which are not UTF-8 reach the checker unchanged, and writes, for each value,
+// the policy the checker parsed and the codes of its errors and warnings, as a JSON array.
 // tests/test_oracle_hstspreload.py drives it; see CONTRIBUTING.md to build it.
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"os"
 
@@ -35,7 +37,13 @@ func main() {
 		os.Exit(2)
 	}
 	out := make([]verdict, 0, len(values))
-	for _, value := range values {
+	for _, encoded := range values {
+		octets, err := hex.DecodeString(encoded)
+		if err != nil {
+			os.Stderr.WriteString(err.Error() + "\n")
+			os.Exit(2)
+		}
+		value := string(octets)
 		header, _ := hstspreload.ParseHeaderString(value)
 		issues := hstspreload.PreloadableHeaderString(value)
 		v := verdict{

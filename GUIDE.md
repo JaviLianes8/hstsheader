@@ -114,15 +114,23 @@ strictly in others, so the result combines both:
 - The site's checker cuts the header at every `;`, inside quoted strings too, trims each
   piece with Go's `strings.TrimSpace` (which also removes CR, LF, NEL and no-break
   spaces), takes a piece for `max-age` when it starts with `max-age`, and for `preload`
-  or `includeSubDomains` when it equals the name, ignoring case. Each piece it takes for
-  one of these where RFC 6797 reads no such directive is the error `preload.misread`,
-  at the piece's offset: `max-agex=5`, or `note="a;max-age=2"`, would make the checker
-  refuse the header, and `note="x;preload;y"` would make it see a `preload` that
-  browsers do not.
+  or `includeSubDomains` when it equals the name, ignoring case (Go also matches the
+  long s, U+017F, with `s`). Each piece it takes for one of these where RFC 6797 reads
+  no such directive is the error `preload.misread`, at the piece's offset:
+  `max-agex=5`, or `note="a;max-age=2"`, would make the checker refuse the header, and
+  `note="x;preload;y"` would make it see a `preload` that browsers do not.
+- The checker reads the octets of the header as UTF-8, and so does this check: each
+  character up to U+00FF is taken as the octet a latin-1 decode made of it, and a
+  character above U+00FF (an RFC error already) as its UTF-8 octets. The octets
+  `C2 A0` (`"\xc2\xa0"` after a latin-1 decode) are one no-break space, which the
+  checker trims; a lone `A0` or `85` octet is not valid UTF-8, and the checker keeps it.
+  Decode a raw head with latin-1, as the command line does, and the check sees the
+  octets the server sent.
 
-The tests run the site's checker on generated headers and hold two properties: every
-header `is_preloadable` accepts passes the checker, and for a header with no RFC error
-and no `preload.misread` the two verdicts and the ten year warning agree. A misread
+The tests run the site's checker on generated headers, given as the octets above
+(obs-text, UTF-8 spaces and lone non-UTF-8 octets included), and hold two properties:
+every header `is_preloadable` accepts passes the checker, and for a header with no RFC
+error and no `preload.misread` the two verdicts and the ten year warning agree. A misread
 header is refused here even when the checker would still take it (for example when the
 piece repeats a directive the header already has), because the checker is then not
 checking the header a browser sees.
@@ -139,7 +147,8 @@ status line or a `name: value` field line, else a bare field value. Without it, 
 input is read as latin-1 the same way. A head ends at an empty line; a line of only
 spaces or tabs is obsolete line folding (RFC 9112 `obs-fold`), a continuation of the
 field line before it, not the end of the head. Without standard input at all (started
-with it closed) and no `VALUE`, it is a usage error. In a head, folded lines are joined,
+with it closed), or with one that cannot be read (a file opened for writing only), and
+no `VALUE`, it is a usage error. In a head, folded lines are joined,
 and every Strict-Transport-Security line of the first final response is passed on, the
 first one counting. Interim responses (1xx) and a proxy's `200 Connection established` are not
 final. With several responses (`curl -sIL` follows redirects) the first is the answer

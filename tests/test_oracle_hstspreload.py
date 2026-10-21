@@ -27,14 +27,19 @@ NAMES = ["max-age", "MAX-AGE", "Max-Age", "includeSubDomains", "includesubdomain
 NAMES += ["preload", "PRELOAD", "foo", "report-uri", ""]
 # Names the checker matches by prefix, and quoted values it cuts at their semicolons.
 NAMES += ["max-agex", "MAX-AGE-v2", "preloadx"]
+# Octets as the command line reads them (latin-1): UTF-8 spaces and the long s, which the
+# checker reads as UTF-8, and lone octets that are not UTF-8.
+NAMES += ["include\xc5\xbfubdomains", "\xe3\x80\x80preload"]
 VALUES = ["31536000", "63072000", "0", "1", "031536000", "315360001", "99999999999"]
 VALUES += ["18446744073709551615", "18446744073709551616", "2147483648", '"31536000"']
 VALUES += ["abc", "", "1x", "yes", '"a;b"', "1" * 30]
 VALUES += ['"a;max-age=1"', '"x;preload;includeSubDomains;y"', '"a; MAX-AGE=31536000;b"']
-VALUES += ['"a;\xa0preload;b"', '"a;max-age"', '"a;preloadx;b"']
+VALUES += ['"a;\xa0preload;b"', '"a;max-age"', '"a;preloadx;b"', '"a;\xc2\xa0preload;b"']
+VALUES += ['"a;\xe2\x80\x8amax-age=1"', '"x;include\xc5\xbfubdomains;y"', '"a;\x85preload;b"']
 MISREAD = ['note="a;preload;b"', "max-agex=1", 'report-uri="a;b"']
 SPACE = ["", " ", "  ", "\t"]
-NOISE = [",", "\x0b", "\xa0", "\x85", "a", "=", '"', " ", "\x7f", "\\", "\t"]
+NOISE = [",", "\x0b", "\xa0", "\x85", "a", "=", '"', " ", "\x7f", "\\", "\t", "\xc2\xa0"]
+NOISE += ["\xc2\x85", "\xe3\x80\x80", "\xc5\xbf"]
 
 
 def _header(rng: random.Random) -> str:
@@ -72,10 +77,17 @@ def _misread(header: str) -> bool:
     return any(issue.code == "preload.misread" for issue in preload_issues(header))
 
 
-def _run(headers: list[str]) -> list[dict[str, Any]]:
-    done = subprocess.run(
-        [ORACLE], input=json.dumps(headers).encode(), capture_output=True, check=True
+def octets(header: str) -> bytes:
+    """What a header stands for: latin-1 up to U+00FF, UTF-8 above, as in the library."""
+    return b"".join(
+        bytes([ord(c)]) if ord(c) < 0x100 else c.encode("utf-8", "surrogatepass") for c in header
     )
+
+
+def _run(headers: list[str]) -> list[dict[str, Any]]:
+    """The checker's verdicts on the octets of each header, sent in hex as it takes them."""
+    payload = json.dumps([octets(header).hex() for header in headers]).encode()
+    done = subprocess.run([ORACLE], input=payload, capture_output=True, check=True)
     verdicts: list[dict[str, Any]] = json.loads(done.stdout)
     assert len(verdicts) == len(headers)
     return verdicts
