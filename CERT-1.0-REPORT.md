@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | see Author mutation round |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -135,3 +135,68 @@ characters (linear), 1 MB inputs in every message path (all under 220 characters
   `licenses/LICENSE`; no tests or scripts. Sdist: sources, tests, `tests/oracle`, the
   manifest without fetched files, docs and LICENSE; no planning notes, no report, no
   scratch files.
+
+## Author mutation round (item 18)
+
+50 mutants over every module, each applied alone to a fresh clone of the pushed branch at
+c579455 on Elena's PC (CPython 3.14), the full suite (fetched sources and the
+hstspreload checker present, e2e off) run with `-x` and a 300 s per-test limit; the
+first failing test is listed. 46 were killed at once. M16 and M49 survived and are now
+killed by the two contracts added in `tests/test_cert_regressions.py` (checked by
+re-running each mutant against them). M04 and M32 are equivalent, for the reasons given.
+
+| Id | Module | Mutation | Result | Caught by |
+| --- | --- | --- | --- | --- |
+| M01 | _chars.py | tchar drops the vertical bar | killed | tests/test_roundtrip.py::test_random_policies_survive_a_strict_round_trip |
+| M02 | _chars.py | qdtext accepts DEL | killed | tests/test_fuzz.py::test_strict_reading_matches_the_grammar[12] |
+| M03 | _chars.py | quoted-pair accepts DEL | killed | tests/test_review_fixes.py::test_quoted_pairs_follow_rfc_9110 |
+| M04 | _chars.py | Unicode case folding for names | equivalent | equivalent: every text lowered is already ASCII (a token checked first), so str.lower gives the same |
+| M05 | _chars.py | message cut off by one | killed | tests/test_cert_regressions.py::test_messages_quote_at_most_forty_characters |
+| M06 | _chars.py | builder lets DEL through | killed | tests/test_build.py::test_extension_values_cannot_inject[\x7f] |
+| M07 | _chars.py | quote does not escape backslash | killed | tests/test_build.py::test_extension_values_that_are_not_tokens_are_quoted |
+| M08 | _model.py | sender ceiling off by one | killed | killed: tests/test_roundtrip.py fails to collect (module level Hsts(DELTA_SECONDS_MAX)) |
+| M09 | _model.py | bool accepted as max_age | killed | tests/test_build.py::test_build_rejects_bool_max_age |
+| M10 | _model.py | pickle drops offset | killed | tests/test_contract_api.py::test_hsts_error_keeps_code_and_offset_through_pickle_and_copy |
+| M11 | _model.py | preload flag unchecked | killed | tests/test_build.py::test_build_refuses_flags_that_are_not_bool[preload] |
+| M12 | _scan.py | NUL not reported | killed | tests/test_strict.py::test_strict_mode_refuses_what_a_user_agent_ignores[max-age=600\x00-control-character-11] |
+| M13 | _scan.py | bare LF fold not unfolded | killed | tests/test_review_fixes.py::test_a_folded_line_is_whitespace |
+| M14 | _scan.py | trailing backslash closes the string | killed | tests/test_strict.py::test_strict_mode_refuses_what_a_user_agent_ignores[max-age=600; |
+| M15 | _scan.py | space after '=' not flagged | killed | tests/test_oracle_hstspreload.py::test_preloadable_headers_pass_the_site_checker[1] |
+| M16 | _scan.py | empty directive points at the end | survived, then killed | survived; killed after adding test_a_trailing_empty_directive_points_at_the_last_semicolon |
+| M17 | _scan.py | no recovery after an unterminated quote | killed | tests/test_parse.py::test_a_broken_directive_does_not_hide_the_ones_after_it |
+| M18 | _scan.py | no whitespace after a value | killed | tests/test_docs.py::test_every_readme_example_runs_and_prints_its_comment |
+| M19 | _scan.py | broken names keep case | killed | tests/test_cert_regressions.py::test_the_tolerant_error_names_the_broken_max_age |
+| M20 | _lint.py | ten digit values capped | killed | tests/test_lint.py::test_exactly_two_to_the_31_is_not_capped |
+| M21 | _lint.py | 2^31 itself flagged as capped | killed | tests/test_lint.py::test_exactly_two_to_the_31_is_not_capped |
+| M22 | _lint.py | max-age=0 warned as leading zero | killed | tests/test_lint.py::test_a_single_zero_is_not_a_leading_zero |
+| M23 | _lint.py | 2^64-1 unreadable | killed | tests/test_oracle_hstspreload.py::test_for_rfc_valid_headers_the_verdicts_agree[4] |
+| M24 | _lint.py | repeated includeSubDomains soft | killed | tests/test_cli.py::test_preload_check_fails_when_browsers_ignore_the_header |
+| M25 | _lint.py | last max-age wins | killed | tests/test_cli.py::test_an_ignored_value_exits_one |
+| M26 | _lint.py | zero warning on the wrong flag | killed | tests/test_contract_api.py::test_every_documented_lint_code_is_produced_with_its_severity |
+| M27 | _lint.py | two field lines not warned | killed | tests/test_cli.py::test_a_response_head_on_stdin |
+| M28 | _lint.py | findings not sorted | killed | src/hstsheader/_lint.py::hstsheader._lint.lint |
+| M29 | _lint.py | broken directives skip repeat check | killed | tests/test_cert_regressions.py::test_the_tolerant_error_names_the_broken_max_age |
+| M30 | _lint.py | last field line read | killed | src/hstsheader/_parse.py::hstsheader._parse.parse |
+| M31 | _parse.py | strict reports the last error | killed | tests/test_hostile.py::test_huge_names_and_values_in_build_errors_are_cut |
+| M32 | _parse.py | broken max-age error search off by one | equivalent | equivalent: a max-age directive always has its name before its syntax error, so the error offset is never its start |
+| M33 | _preload.py | soft repeats stay errors | killed | tests/test_cli.py::test_a_repeated_preload_is_not_honoured_by_the_rfc_but_still_preloadable |
+| M34 | _preload.py | one year exactly refused | killed | tests/test_cli.py::test_preload_check |
+| M35 | _preload.py | ten years counted with leap days | killed | tests/test_cert_regressions.py::test_the_ten_year_warning_stays_for_a_plain_max_age |
+| M36 | _preload.py | spaced max-age still warned | killed | tests/test_cert_regressions.py::test_no_ten_year_warning_where_the_site_cannot_read_max_age[max-age |
+| M37 | _preload.py | is_preloadable inverted on mixes | killed | src/hstsheader/_preload.py::hstsheader._preload.is_preloadable |
+| M38 | _preload.py | spaced max-age accepted for preload | killed | tests/test_cert_regressions.py::test_no_ten_year_warning_where_the_site_cannot_read_max_age[max-age |
+| M39 | _build.py | preload accepted as extension | killed | tests/test_build.py::test_extension_names_cannot_shadow_the_known_directives[Preload] |
+| M40 | _build.py | duplicate check case sensitive | killed | tests/test_build.py::test_extension_names_must_be_unique_ignoring_case |
+| M41 | _build.py | token values quoted | killed | src/hstsheader/_build.py::hstsheader._build.build |
+| M42 | _build.py | flags written in the other order | killed | src/hstsheader/_build.py::hstsheader._build.build |
+| M43 | _head.py | first response checked | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them[HTTP/1.1 |
+| M44 | _head.py | field name case sensitive | killed | tests/test_cli.py::test_a_response_head_on_stdin |
+| M45 | _head.py | fold joined without space | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them[HTTP/2 |
+| M46 | _head.py | head does not end at blank line | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them[HTTP/2 |
+| M47 | _cli.py | --preload does not set exit status | killed | tests/test_cli.py::test_preload_check |
+| M48 | _cli.py | usage exit status 1 | killed | tests/test_cli.py::test_a_head_without_the_field_is_a_usage_error |
+| M49 | _cli.py | empty argument is a usage error | survived, then killed | survived; killed after adding test_an_empty_argument_is_checked_as_a_value |
+| M50 | _cli.py | honoured means a max-age was read | killed | tests/test_cli.py::test_an_ignored_value_exits_one |
+
+## Gates (item 15)
+

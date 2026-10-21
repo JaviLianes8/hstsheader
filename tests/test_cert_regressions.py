@@ -70,3 +70,14 @@ def test_version_option(capsys: pytest.CaptureFixture[str]) -> None:
         main(["--version"])
     assert done.value.code == 0
     assert capsys.readouterr().out == f"hstsheader {hstsheader.__version__}\n"
+
+
+def test_a_trailing_empty_directive_points_at_the_last_semicolon() -> None:
+    (issue,) = [i for i in lint("max-age=1;  \t") if i.code == "empty-directive"]
+    assert issue.offset == 9
+
+
+def test_an_empty_argument_is_checked_as_a_value(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main([""]) == 1
+    report = capsys.readouterr().out
+    assert '"field": ""' in report and "max-age.missing" in report
