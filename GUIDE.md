@@ -95,8 +95,9 @@ strictly in others, so the result combines both:
   here, because the site and Chromium accept it.
 - The site's own rules come next. A quoted `max-age`, space around its `=` or a value
   above 2^64 - 1 is an error, because the site cannot read it; the ten year warning
-  appears only for a `max-age` the site can read. A `preload` with a value is the error
-  `preload.invalid`, because the site refuses it, and it does not count as `preload`.
+  appears only for a `max-age` the site can read. A `preload` with a value is the
+  warning `preload.invalid`, as on the site, and it does not count as `preload`, so
+  without a bare `preload` the header fails with `preload.missing`.
 
 The tests run the site's checker on generated headers and hold two properties: every
 header `is_preloadable` accepts passes the checker, and for a header with no RFC error the
@@ -118,20 +119,25 @@ final. With several responses (`curl -sIL` follows redirects) the first is the a
 for the URL that was asked for: RFC 6797 section 8.1 has a browser apply the header of
 each response, redirects included, to the host that sent it, and hstspreload.org reads
 the header on the base domain's own response rather than on the page it redirects to.
+When the first final response has no field but a later one has it, the base domain
+sends no header: the report has `field` and `policy` null, `honoured` (and
+`preloadable`) false, and the single issue `field.missing`, an error with a null
+offset, in `issues` (and `preload_issues`).
 
 The JSON object has these keys, in this order:
 
 | Key | Value |
 | --- | --- |
-| `field` | the first field value checked |
+| `field` | the first field value checked, or `null` with `field.missing` |
 | `honoured` | `true` when there is no RFC error |
 | `policy` | `{"max_age", "include_subdomains", "preload"}` from the tolerant reading, or `null` |
 | `issues` | every lint finding: `{"code", "severity", "offset", "message"}` |
 | `preloadable` | with `--preload` only: `true` when there is no preload error |
-| `preload_issues` | with `--preload` only: the `preload.*` findings |
+| `preload_issues` | with `--preload` only: the `preload.*` findings, or `field.missing` |
 
 Exit status: 0 when the header is honoured (with `--preload`: preloadable), 1 when it is
-not, 2 for usage errors, including input without the field and an empty standard input.
+not (`field.missing` above included), 2 for usage errors, including input where no
+response has the field and an empty standard input.
 An empty `VALUE` argument is a value to check, so it exits 1. When the reader of the
 output stops early (`| head`), the rest is discarded quietly and the exit status still
 gives the verdict.
@@ -145,9 +151,9 @@ Code may need a change in these places:
 - Calling `lint(value=...)` by keyword: the parameter is `header` now, like the other
   readers. Positional calls are unchanged.
 - Relying on `preload=<value>` being an error: it is the warning `preload-value` now,
-  and the preload check reports it as `preload.invalid`.
+  and the preload check reports it as the warning `preload.invalid`.
 - Piping `curl -sIL` into the command line: the first final response is checked, not
-  the last.
+  the last, and when only a later response has the field the exit status is 1.
 
 The other changes in the
 [changelog](https://github.com/JaviLianes8/hstsheader/blob/main/CHANGELOG.md) make

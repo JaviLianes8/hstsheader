@@ -58,11 +58,11 @@ def test_a_value_on_preload_is_refused_by_the_preload_rules() -> None:
         (i.code, i.severity)
         for i in preload_issues("max-age=63072000; includeSubDomains; preload=1")
     ]
-    assert codes == [("preload.invalid", "error"), ("preload.missing", "error")]
-    # A valueless preload next to one with a value: the site's checker still refuses it.
+    assert codes == [("preload.invalid", "warning"), ("preload.missing", "error")]
+    # A valueless preload next to one with a value: the site's checker only warns (round 2).
     both = preload_issues("max-age=63072000; includeSubDomains; preload; preload=1")
-    assert ("preload.invalid", "error") in [(i.code, i.severity) for i in both]
-    assert not hstsheader.is_preloadable("max-age=63072000; includeSubDomains; preload; preload=1")
+    assert ("preload.invalid", "warning") in [(i.code, i.severity) for i in both]
+    assert hstsheader.is_preloadable("max-age=63072000; includeSubDomains; preload; preload=1")
 
 
 def test_the_sender_ceiling_is_presented_as_this_library_choice() -> None:

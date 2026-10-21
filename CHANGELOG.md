@@ -31,12 +31,16 @@ change.
   RFC 6797 does not define `preload`, so it is an unknown directive there: strict
   `parse` accepts the header with `preload` false, and `lint` gives the new warning
   `preload-value` instead of the error `value-not-allowed`, which now applies to
-  `includeSubDomains` only. `preload_issues` reports it as the new error
-  `preload.invalid`, since the hstspreload.org checker refuses it.
+  `includeSubDomains` only. `preload_issues` reports it as the new warning
+  `preload.invalid`, as the hstspreload.org checker does, and it does not count as
+  `preload`, so a header whose only `preload` has a value fails with
+  `preload.missing`.
 - The command line checks the first final response of a redirect chain
   (`curl -sIL`), not the last: the base domain's own response is the one hstspreload.org
   checks and the one a browser applies to that host. Interim (1xx) responses and a
-  proxy's `Connection established` are skipped.
+  proxy's `Connection established` are skipped. When the first final response has no
+  Strict-Transport-Security field but a later one has it, the exit status is 1 with
+  the single issue `field.missing`; exit status 2 means no response has the field.
 - The `max-age.too-large` message names 2^31 as this library's cap; RFC 6797 sets no
   ceiling and the value follows RFC 9111 by analogy.
 - Error messages and `Issue` messages quote at most 40 characters of a directive name
@@ -65,7 +69,8 @@ change.
   hints failed on it.
 - The command line printed a traceback and exited 1 when the reader of its output
   stopped early (`| head`); it now stops quietly and the exit status still gives the
-  verdict.
+  verdict. Started with standard output closed, it no longer fails with a traceback
+  and exit status 1 either.
 
 ### Added
 

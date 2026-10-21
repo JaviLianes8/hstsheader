@@ -40,14 +40,20 @@ def _unfold(lines: list[str]) -> list[str]:
     return [" ".join(parts) for parts in out]
 
 
-def field_lines(text: str) -> list[str] | None:
-    """Return the STS values of the first final response in ``text``, or None for a bare value.
+def _values(head: list[str]) -> list[str]:
+    values: list[str] = []
+    for line in _unfold(head):
+        name, sep, value = line.partition(":")
+        if sep and name.lower() == _FIELD:
+            values.append(value.strip(" \t"))
+    return values
+
+
+def response_fields(text: str) -> list[list[str]] | None:
+    """Return the STS values of each final response in ``text``, or None for a bare value.
 
     Input counts as a head when its first non-empty line is a status line or a field
-    line (``name: value``). With several responses (``curl -sIL`` follows redirects) the
-    first final one is used: the answer for the URL that was asked for. A user agent
-    applies the header of each response to the host that sent it, and hstspreload.org
-    reads it on the base domain's own response, not on the page it redirects to.
+    line (``name: value``).
     """
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     first = next((i for i, line in enumerate(lines) if line.strip(" \t")), len(lines))
@@ -58,10 +64,18 @@ def field_lines(text: str) -> list[str] | None:
         if not _FIELD_LINE.match(lines[0]):
             return None
         lines.insert(0, "HTTP/")  # pasted fields without a status line
-    heads = _responses(lines)
-    values: list[str] = []
-    for line in _unfold(heads[0] if heads else []):
-        name, sep, value = line.partition(":")
-        if sep and name.lower() == _FIELD:
-            values.append(value.strip(" \t"))
-    return values
+    return [_values(head) for head in _responses(lines)]
+
+
+def field_lines(text: str) -> list[str] | None:
+    """Return the STS values of the first final response in ``text``, or None for a bare value.
+
+    With several responses (``curl -sIL`` follows redirects) the first final one is used:
+    the answer for the URL that was asked for. A user agent applies the header of each
+    response to the host that sent it, and hstspreload.org reads it on the base domain's
+    own response, not on the page it redirects to.
+    """
+    heads = response_fields(text)
+    if heads is None:
+        return None
+    return heads[0] if heads else []

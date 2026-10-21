@@ -80,6 +80,19 @@ def test_the_oracle_answers_its_own_vectors() -> None:
     assert "header.preloadable.max_age.zero" in zero["errors"]
 
 
+def test_a_value_on_preload_is_only_a_warning_on_both_sides() -> None:
+    headers = [
+        "max-age=31536000; includeSubDomains; preload; preload=yes",
+        "max-age=315360001;;INCLUDESUBDOMAINS;;preload=1 ;preload;",
+        '\tmax-age=31536000; ; preload ;preload="";includeSubDomains ',
+    ]
+    for header, verdict in zip(headers, _run(headers), strict=True):
+        assert verdict["errors"] == [], header
+        assert "header.parse.invalid.preload" in verdict["warnings"], header
+        assert is_preloadable(header), header
+        assert "preload.invalid" in [i.code for i in preload_issues(header)], header
+
+
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_preloadable_headers_pass_the_site_checker(seed: int) -> None:
     headers = _corpus(seed, 15000)

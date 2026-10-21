@@ -135,8 +135,8 @@ network; that part is out of scope here.
 | `preload.max-age-quoted` | error | a quoted `max-age`, which the site's checker refuses |
 | `preload.max-age-spaced` | error | space around the `=` of `max-age` |
 | `preload.max-age-unreadable` | error | a `max-age` above 2^64 - 1 |
-| `preload.invalid` | error | `preload` with a value, which the site's checker refuses |
 | `preload.max-age-over-ten-years` | warning | a `max-age` above ten years |
+| `preload.invalid` | warning | `preload` with a value, which does not count as `preload` |
 
 ## Build a header
 
@@ -167,14 +167,18 @@ $ hstsheader --version
 It prints the policy and the findings as JSON (the keys are listed in the
 [guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#command-line)).
 The exit status is 0 when a user agent following RFC 6797 honours the header (with
-`--preload`: when it meets the preload rules), 1 when it does not, and 2 when the input
-has no Strict-Transport-Security field (empty standard input included). A head ends at
+`--preload`: when it meets the preload rules), 1 when it does not, and 2 when no
+response in the input has a Strict-Transport-Security field (empty standard input
+included). A head ends at
 its blank line, folded lines are joined and pasted fields without a status line are
 accepted. With several responses (`curl -sIL`) the first final one is checked, the
 answer for the URL you asked for: a browser applies each response's header to the host
 that sent it, and hstspreload.org reads the header on the base domain's own response,
 not on the page it redirects to. Interim (1xx) responses and a proxy's `Connection
-established` are skipped. To check where a redirect leads, run it on that URL.
+established` are skipped. When the first final response has no field but a later one
+has it, the base domain sends no header: the exit status is 1 and the only issue is
+`field.missing`, with `field` and `policy` null. To check where a redirect leads, run
+it on that URL.
 
 ## Where Chromium differs
 

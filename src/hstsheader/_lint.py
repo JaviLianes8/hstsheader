@@ -11,7 +11,7 @@ from ._scan import Directive, scan
 
 _VALUELESS = {"includesubdomains": "includeSubDomains", "preload": "preload"}
 # RFC 6797 defines includeSubDomains as valueless; preload is not in it, so a preload with a
-# value is an unknown directive there, while the hstspreload.org checker refuses it.
+# value is an unknown directive there, and the hstspreload.org checker only warns.
 _PRELOAD_VALUE = "preload with a value is not the preload directive and is ignored"
 # Chromium refuses a header only when these repeat; the preload checker only warns otherwise.
 _HARD_REPEATS = frozenset({"max-age", "includesubdomains"})
@@ -38,7 +38,7 @@ class Analysis:
     soft_repeats: frozenset[int] = frozenset()
     # Where the first max-age directive starts when the grammar made it unreadable.
     max_age_broken_at: int | None = None
-    # A preload directive carried a value: ignored by RFC 6797, refused by hstspreload.org.
+    # A preload directive carried a value: ignored by RFC 6797, a warning on hstspreload.org.
     preload_valued: bool = False
 
     @property

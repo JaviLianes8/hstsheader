@@ -48,7 +48,8 @@ def test_a_redirect_without_the_field_is_reported_as_missing(
 ) -> None:
     head = b"HTTP/1.1 301 Moved\r\nLocation: /x\r\n\r\nHTTP/2 200\r\nstrict-transport-security: "
     code, report = _run(monkeypatch, capsys, "--preload", stdin=head + GOOD.encode())
-    assert code == 2 and report == {}
+    # Round 2: a rejection with field.missing, no longer a usage error.
+    assert code == 1 and report["field"] is None and report["preloadable"] is False
 
 
 def test_a_good_base_domain_is_preloadable_whatever_it_redirects_to(

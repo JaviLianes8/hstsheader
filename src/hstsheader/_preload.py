@@ -26,8 +26,9 @@ def _form_issues(analysis: Analysis) -> list[Issue]:
         message = "hstspreload.org does not accept space around '=' in max-age"
         issues.append(Issue("preload.max-age-spaced", message, "error"))
     if analysis.preload_valued:
-        message = "hstspreload.org refuses a preload directive with a value"
-        issues.append(Issue("preload.invalid", message, "error"))
+        # The site's checker only warns; a value-only preload fails as preload.missing.
+        message = "preload with a value does not count as the preload directive"
+        issues.append(Issue("preload.invalid", message, "warning"))
     if analysis.max_age_beyond_uint64:
         message = "hstspreload.org cannot read a max-age above 2^64 - 1"
         issues.append(Issue("preload.max-age-unreadable", message, "error"))
@@ -43,8 +44,9 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     as already valid. Then the hstspreload.org rules apply: ``includeSubDomains`` and
     ``preload`` present, and a ``max-age`` of at least :data:`PRELOAD_MIN_MAX_AGE`,
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
-    2^64 - 1), and no ``preload`` with a value. A ``max-age`` above ten years, written
-    that way, is a warning. An empty tuple or warnings only means the header qualifies.
+    2^64 - 1). A ``preload`` with a value does not count as ``preload`` and is a
+    warning, as on the site, and so is a ``max-age`` above ten years written that way.
+    An empty tuple or warnings only means the header qualifies.
 
     >>> from hstsheader import Hsts, preload_issues
     >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]
