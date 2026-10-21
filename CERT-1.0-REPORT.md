@@ -200,3 +200,8 @@ re-running each mutant against them). M04 and M32 are equivalent, for the reason
 
 ## Gates (item 15)
 
+At 6b6075e on Elena's PC (CPython 3.14) from a fresh clone, each command on its own, with
+the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
+`HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. Since then
+only this report changed.
