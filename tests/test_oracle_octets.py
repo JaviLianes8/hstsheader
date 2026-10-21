@@ -15,6 +15,7 @@ import subprocess
 from typing import Any
 
 import pytest
+from conftest import NO_PRELOAD, SWEEPS, sweep_headers
 
 from hstsheader import is_preloadable, lint, preload_issues
 
@@ -22,7 +23,6 @@ ORACLE = os.environ.get("HSTSHEADER_ORACLE", "")
 pytestmark = pytest.mark.skipif(not ORACLE, reason="set HSTSHEADER_ORACLE to the built checker")
 
 GOOD = "max-age=31536000; includeSubDomains; preload"
-NO_PRELOAD = "max-age=31536000; includeSubDomains"
 # Go's unicode.IsSpace and the code points around it, as UTF-8 octets.
 CODES = [*range(0x08, 0x0F), 0x1F, 0x20, 0x21, 0x84, 0x85, 0x86, 0x9F, 0xA0, 0xA1, 0x167F]
 CODES += [0x1680, 0x1681, 0x1FFF, *range(0x2000, 0x200C), 0x2027, 0x2028, 0x2029, 0x202A]
@@ -52,6 +52,13 @@ CASES = [
     ("max-age=31536000; preload; include\xc5\xbfubdomains", True, True, True, True),
     (f'{NO_PRELOAD}; note="{WIDE}x;\xc2\xa0preload;y"', True, True, True, True),
     (f'{GOOD}; note="{WIDE}x;\xa0max-age=1;y"', False, True, True, True),
+    # Runs above U+00FF on both sides of the piece.
+    (f'{NO_PRELOAD}; note="{WIDE}x;\xc2\xa0preload;{WIDE}y"', True, True, True, True),
+    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;yy{WIDE}"', False, True, True, True),
+    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;{WIDE}y"', False, True, True, True),
+    # U+3164, the hangul filler, renders blank but is not a space to Go.
+    (f'{NO_PRELOAD}; note="x;\xe3\x85\xa4preload;y"', False, False, True, False),
+    (f'{GOOD}; note="x;\xe3\x85\xa4max-age=1;y"', False, True, True, True),
 ]
 
 
@@ -115,3 +122,42 @@ def test_every_code_point_is_trimmed_exactly_when_the_checker_trims_it() -> None
     verdicts = _run(headers)
     wrong = [h for h, v in zip(headers, verdicts, strict=True) if _misread(h) != v["preload"]]
     assert wrong == []
+
+
+def _checker_trims(kind: str) -> set[int]:
+    """The code points of a sweep the checker trims, by halving each header it misreads."""
+    _, write, before = SWEEPS[kind]
+
+    def header(codes: list[int]) -> str:
+        forms = [write(code) for code in codes]
+        pieces = "".join(f";{form}preload" if before else f";preload{form}" for form in forms)
+        return f'{NO_PRELOAD}; note="x{pieces};y"'
+
+    pending = [list(where.values()) for _, where in sweep_headers(kind)]
+    found: set[int] = set()
+    while pending:
+        verdicts = []
+        for at in range(0, len(pending), 64):
+            verdicts += _run([header(codes) for codes in pending[at : at + 64]])
+        halves = []
+        for codes, verdict in zip(pending, verdicts, strict=True):
+            if verdict["preload"] and len(codes) == 1:
+                found.add(codes[0])
+            elif verdict["preload"]:
+                halves += [codes[: len(codes) // 2], codes[len(codes) // 2 :]]
+        pending = halves
+    return found
+
+
+def test_every_code_point_outside_ascii_is_trimmed_exactly_when_the_checker_trims_it(
+    misread_sweep: dict[str, tuple[set[int], list[str]]],
+) -> None:
+    before = _checker_trims("octets before")
+    after = _checker_trims("octets after")
+    # A character above U+00FF reaches the checker as its UTF-8 octets, as in "octets before".
+    expected: dict[str, tuple[set[int], list[str]]] = {
+        "octets before": (before, []),
+        "octets after": (after, []),
+        "character before": ({code for code in before if code > 0xFF}, []),
+    }
+    assert misread_sweep == expected
