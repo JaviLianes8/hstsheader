@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 4 killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 5 killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -388,6 +388,38 @@ mypy consumer test, mypy not installed there). On this PC `ruff format --check .
 `ruff check .`, `mypy --strict src` and `mypy --strict src tests` exit 0, and the
 mypy consumer test passes.
 
+### Round 5
+
+Lens e checked b41d39e and confirmed N1 to N4 fixed: the four raw octet command line
+cases and the N2 to N4 repros match the checker, and a differential run of 75,282
+headers (every code point to U+30FF plus U+FEFF, U+FFFD and points past the basic plane,
+as characters and as UTF-8 octets, before the name, after it and on both sides) and of
+every non-ASCII character folding to an ASCII letter shows no difference from the
+checker. Its 40 mutants of the code changed since 370723f: 36 killed, one equivalent
+(A38: the `ValueError` arm of the standard input guard, since a closed or detached stream
+fails earlier at `isatty()` and a read that is not allowed raises
+`io.UnsupportedOperation`, an `OSError`), three survived. The survivors were missing
+contracts, not wrong behaviour: the library already agreed with the checker on every
+repro. Both findings are fixed with tests only, so the library and the CHANGELOG are
+unchanged; none is disputed.
+
+| Lens | Id | Severity | Finding | Contract |
+| --- | --- | --- | --- | --- |
+| e | S1 | low | U+180E and U+FEFF were not pinned as non-members of Go's space set: adding either to `_GO_SPACE` (A11, A12) passed every test | U+180E and U+FEFF join the non-members in `tests/test_qa_round4.py` and the checker's code list in `tests/test_oracle_octets.py`; `tests/test_qa_round5.py` sweeps every code point to U+30FF plus U+FEFF, U+FFFD and three past the basic plane, as UTF-8 octets and as characters, before and after the name, and asserts a misread exactly for Go's spaces (and `;`); `test_every_code_point_is_trimmed_exactly_when_the_checker_trims_it` runs the same sweep (38,351 headers) against the checker itself |
+| e | S2 | low | headers mixing octets 0x80 to 0xFF with a character above U+00FF were not pinned: reading every non-ASCII character of such a header as UTF-8 (A18) passed every test | the two repros as tests (a wide character with `C2 A0` before `preload` is misread, with a lone `A0` before `max-age=1` it is not) and as checker cases in `CASES`; every character and UTF-8 form up to U+00FF swept with a character above U+00FF after the quote, in `tests/test_qa_round5.py` and against the checker; the oracle driver now gets each character above U+00FF as its UTF-8 octets, as `preload_issues` reads it |
+
+The new tests pass on b41d39e, and each surviving mutant applied alone fails them: A11
+and A12 fail both sweeps, the U+180E and U+FEFF test, the round 4 non-member test and
+both checker sweeps; A18 fails the latin-1 sweep beside a wide character, both repro
+tests, the checker cases and the checker sweep. The library sweep takes about two
+seconds, the checker sweep three.
+
+Verification at the commit that adds these contracts (a6c2ebd), on Elena's PC (CPython
+3.14.2) from a clone of the local branch with the fetched sources and the checker built
+from `tests/oracle`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (553 passed, 2 skipped: the two e2e tests,
+which need `HSTSHEADER_E2E` and PyPI).
+
 ### Disputed findings
 
-None in rounds 1 to 4.
+None in rounds 1 to 5.
