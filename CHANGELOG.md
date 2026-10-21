@@ -6,7 +6,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.2.0] - not released yet
+## [1.0.0] - 2026-10-21
+
+The public API is now stable: the ten names in `hstsheader.__all__`, their parameter
+names and defaults, the `Issue` codes listed in the README, the `HstsError` attributes
+and the command line options, JSON keys and exit statuses. They change only in a new
+major version. Upgrading from 0.2.0 needs a change only where code catches `HstsError`
+for an argument of the wrong type (see below).
+
+### Changed
+
+- An argument of the wrong type now raises `TypeError` everywhere, as `parse` already
+  did for `bytes`: `Hsts` and `build` with a `max_age` that is not an `int` (a `bool`
+  included) or a flag that is not a `bool`, and `build` with `extensions` that is not a
+  mapping, a name that is not a `str` or a value that is neither `str` nor `None`. In
+  0.2.0 these raised `HstsError` with the code `type` (or `build.name` for a name that
+  is not a `str`); that code is gone. Values of the right type that a header cannot
+  carry still raise `HstsError`.
+- Error messages and `Issue` messages quote at most 40 characters of a directive name
+  or value, followed by its length; 0.2.0 quoted the whole of it, megabytes included.
+- `Hsts`, `Issue` and `HstsError` report `hstsheader` as their module, so `repr`,
+  tracebacks and pickles name the public path instead of a private module.
+- `HstsError` keeps `code` and `offset` through `pickle` and `copy` (0.2.0 reset them
+  to `invalid` and `None`).
+- A `str` subclass passed to `parse`, `lint` or the preload checks is read as a plain
+  `str`.
+
+### Added
+
+- `hstsheader --version`.
+- Every public name has a docstring with an example that runs as a test.
+
+## [0.2.0] - 2026-10-19
 
 ### Added
 

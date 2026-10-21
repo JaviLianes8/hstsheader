@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-from ._chars import DIGITS
+from ._chars import DIGITS, shorten
 from ._model import DELTA_SECONDS_MAX, Issue
 from ._scan import Directive, scan
 
@@ -60,7 +60,8 @@ def _max_age(directive: Directive, issues: list[Issue]) -> int | None:
         issues.append(Issue("max-age.no-value", "max-age needs a value", "error", directive.offset))
         return None
     if not value or not all(char in DIGITS for char in value):
-        message = f"max-age must be ASCII digits, got {value!r}"
+        shown = repr(value) if len(value) <= 40 else f"{value[:40]!r}... ({len(value)} characters)"
+        message = f"max-age must be ASCII digits, got {shown}"
         issues.append(Issue("max-age.not-digits", message, "error", offset))
         return None
     seconds, capped = delta_seconds(value)
@@ -84,14 +85,15 @@ def _first_field(value: str | Iterable[str]) -> tuple[str | None, int]:
     if isinstance(value, (bytes, bytearray, memoryview)):
         raise TypeError("pass the header as str; decode bytes with latin-1 first")
     if isinstance(value, str):
-        return value, 1
+        # A plain copy: a str subclass could change what indexing or iteration returns.
+        return str.__str__(value), 1
     if isinstance(value, Mapping) or not isinstance(value, Iterable):
         raise TypeError(f"pass a str or a list of str, got {type(value).__name__}")
     fields = list(value)
     for item in fields:
         if not isinstance(item, str):
             raise TypeError(f"field lines must be str, got {type(item).__name__}")
-    return (fields[0] if fields else None), len(fields)
+    return (str.__str__(fields[0]) if fields else None), len(fields)
 
 
 def analyse(value: str | Iterable[str]) -> Analysis:
@@ -116,7 +118,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     flags = {key: False for key in _VALUELESS}
     for offset, key, directive in sorted(order, key=lambda item: item[0]):
         if key in seen:
-            name = directive.name if directive else key
+            name = shorten(directive.name if directive else key)
             message = f"{name} appears more than once; every directive must be unique"
             issues.append(Issue("duplicate", message, "error", offset))
             if key not in _HARD_REPEATS:
@@ -135,7 +137,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
             else:
                 flags[key] = True
         else:
-            message = f"unknown directive {directive.name} is ignored"
+            message = f"unknown directive {shorten(directive.name)} is ignored"
             issues.append(Issue("unknown-directive", message, "warning", offset))
     if "max-age" not in seen:
         issues.append(Issue("max-age.missing", "max-age is required", "error"))
@@ -162,5 +164,11 @@ def lint(value: str | Iterable[str]) -> tuple[Issue, ...]:
     processed, as RFC 6797 section 8.1 requires). Findings with severity ``error`` mean a
     user agent that follows RFC 6797 ignores the header; an empty tuple means a clean
     header. Chromium is more lenient in places (see the README).
-    """
+
+    >>> from hstsheader import lint
+    >>> [(i.severity, i.code, i.offset) for i in lint("max-age=010; includeSubDomains=1;")]
+    [('warning', 'max-age.leading-zero', 8), ('error', 'value-not-allowed', 13), ('warning', 'empty-directive', 32)]
+    >>> lint("max-age=31536000; includeSubDomains")
+    ()
+    """  # noqa: E501
     return analyse(value).issues

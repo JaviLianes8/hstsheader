@@ -47,3 +47,8 @@ def is_sendable(text: str) -> bool:
 def quote(text: str) -> str:
     """Write a quoted-string, escaping only the backslash and the double quote."""
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def shorten(text: str, limit: int = 40) -> str:
+    """The text itself when short, else its start and its length: messages stay bounded."""
+    return text if len(text) <= limit else f"{text[:limit]}... ({len(text)} characters)"

@@ -42,6 +42,12 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
     2^64 - 1). A ``max-age`` above ten years is a warning. An empty tuple or warnings only
     means the header qualifies.
+
+    >>> from hstsheader import Hsts, preload_issues
+    >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]
+    ['preload.missing', 'preload.max-age-too-short']
+    >>> preload_issues(Hsts(63072000, include_subdomains=True, preload=True))
+    ()
     """
     if isinstance(header, Hsts):
         issues: list[Issue] = []
@@ -70,5 +76,12 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
 
 
 def is_preloadable(header: Hsts | str | Iterable[str]) -> bool:
-    """True when :func:`preload_issues` finds no error."""
+    """True when :func:`preload_issues` finds no error.
+
+    >>> from hstsheader import is_preloadable
+    >>> is_preloadable("max-age=63072000; includeSubDomains; preload")
+    True
+    >>> is_preloadable('max-age="63072000"; includeSubDomains; preload')
+    False
+    """
     return not any(issue.severity == "error" for issue in preload_issues(header))

@@ -7,6 +7,7 @@ import json
 import sys
 from collections.abc import Sequence
 
+from . import __version__
 from ._head import field_lines
 from ._lint import analyse
 from ._model import Issue
@@ -36,6 +37,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "not, 2 a usage error such as input without the field.",
     )
     parser.add_argument("value", nargs="?", help="a Strict-Transport-Security field value")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--preload", action="store_true", help="also check the hstspreload.org requirements"
     )

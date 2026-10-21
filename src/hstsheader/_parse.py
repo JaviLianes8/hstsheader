@@ -20,6 +20,19 @@ def parse(header: str | Iterable[str], *, strict: bool = False) -> Hsts:
     finding of severity ``error`` from :func:`lint` raises :class:`HstsError` with its
     code and offset. By default the reader is tolerant: it skips broken directives, keeps
     the first valid ``max-age`` and raises only when no valid ``max-age`` is left.
+    ``bytes`` or anything that is not text raises ``TypeError``.
+
+    >>> from hstsheader import parse
+    >>> parse("max-age=31536000; includeSubDomains")
+    Hsts(max_age=31536000, include_subdomains=True, preload=False)
+    >>> parse(["max-age=600; preload", "max-age=0"]).max_age
+    600
+    >>> parse("max-age=600; preload=yes").preload
+    False
+    >>> parse("max-age=600; preload=yes", strict=True)
+    Traceback (most recent call last):
+    ...
+    hstsheader.HstsError: preload takes no value (at offset 13)
     """
     analysis = analyse(header)
     if strict and analysis.errors:
