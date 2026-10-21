@@ -82,9 +82,9 @@ for issue in lint('max-age="031536000"; includeSubDomains=yes;'):
 
 An `error` means a user agent that follows RFC 6797 ignores the whole header, with quoted
 strings read by the RFC 9110 rules (the
-[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#reading-a-value) has
-the one difference from older rules). A `warning` marks something legal that is likely a
-mistake or that some checkers refuse.
+[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#reading-a-value)
+says where the older RFC 2616 rules differ). A `warning` marks something legal that is
+likely a mistake or that some checkers refuse.
 Offsets index the field value; an empty directive points at its semicolon.
 
 | Code | Severity | Meaning |
@@ -158,7 +158,8 @@ print(build(Hsts(600, preload=True), extensions={"report-uri": "https://example.
 
 Flags must be `bool`, or `None` (the default) for not given, and `max_age` an `int` (else
 `TypeError`), from 0 to 2147483648 (else `HstsError`). An `Hsts` carries its own flags:
-passing one next to it raises `TypeError`, and a type checker reports that call too. Extension names must be HTTP tokens and cannot repeat or shadow the
+passing one next to it raises `TypeError`, and a type checker reports that call too.
+Extension names must be HTTP tokens and cannot repeat or shadow the
 three known directives; values that are not tokens are quoted, and control or non-ASCII
 characters raise `HstsError`, so a value cannot smuggle a second header line. For every
 valid policy, `parse(build(policy), strict=True) == policy`.
@@ -179,7 +180,8 @@ The exit status is 0 when a user agent following RFC 6797 honours the header (wi
 response in the input has a Strict-Transport-Security field (empty standard input
 included). A head ends at
 its empty line, folded lines are joined (a line of only spaces or tabs is a fold, not the
-end of the head) and pasted fields without a status line are accepted. With several responses (`curl -sIL`) the first final one is checked, the
+end of the head) and pasted fields without a status line are accepted. With several
+responses (`curl -sIL`) the first final one is checked, the
 answer for the URL you asked for: a browser applies each response's header to the host
 that sent it, and hstspreload.org reads the header on the base domain's own response,
 not on the page it redirects to. Interim (1xx) responses and a proxy's `Connection

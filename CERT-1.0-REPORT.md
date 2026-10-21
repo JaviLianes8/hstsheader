@@ -31,8 +31,8 @@ Progress:
 | 6 | Contract tests of every public name | PASS |
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
-| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655 |
-| 10 | Supported Pythons | PASS (last run at 0687e52): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28 |
+| 10 | Supported Pythons | PASS (last run at 7633c28): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
 | 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-21 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 3 killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -56,7 +56,6 @@ Defects found in 0.2.0 by reading and then reproducing:
   `Hsts` and `build`, but `TypeError` in `parse` and for flags next to an `Hsts`.
 - Messages quoted whole directive names and values: a 1 MB unknown directive gave a 1 MB
   message.
-- `HstsError` lost `code` and `offset` through `pickle` and `copy`.
 - `preload_issues` warned "over ten years" for a quoted, spaced or 2^64-overflowing
   `max-age` that the site's checker cannot read and never warns about (found by running
   the checker).
@@ -76,9 +75,12 @@ defaults, pinned by `tests/test_contract_api.py`; the `Issue` codes and severiti
 tied to the README tables by test; the command line JSON keys (pinned in
 `tests/test_cli.py`) and exit statuses. Changed, all in the CHANGELOG and the GUIDE:
 `TypeError` for every wrong argument type; bounded messages; `__module__` of `Hsts`,
-`Issue` and `HstsError` is `hstsheader`; `HstsError` keeps `code` and `offset` through
-pickle and copy; `str` subclasses read as plain text; the ten year warning only where
-the site warns; the tolerant error names the broken `max-age`; `hstsheader --version`.
+`Issue` and `HstsError` is `hstsheader` (with a `__reduce__` that keeps `code` and
+`offset` through pickle and copy, as 0.2.0 already did); `str` subclasses read as plain
+text; the ten year warning only where the site warns; the tolerant error names the broken
+`max-age`; `hstsheader --version`. After the third QA round: `preload.misread`, sets
+refused as field lines, at most two field lines taken from an iterable, a line of spaces
+in a head read as a fold, and typing overloads for `build` (see Round 3).
 
 ## Ground truth (item 7)
 
@@ -204,7 +206,7 @@ At 6b6075e on Elena's PC (CPython 3.14) from a fresh clone, each command on its 
 the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
 `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
 `mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. After the
-QA rounds the gates were run again at f22e655 and at 0687e52; see Round 1 and Round 2
+QA rounds the gates were run again at f22e655, 0687e52 and 7633c28; see Rounds 1 to 3
 below.
 
 ## QA lenses (item 19)
@@ -289,6 +291,60 @@ Verification at 0687e52:
   3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t, 9 doctests each; 3.8.20 and
   3.9.25 refuse the wheel.
 
+### Round 3
+
+Five independent lenses checked 2fd8202. Lens a found four issues, lens b two, lens c
+three, lens d two (the same as A1 in lens a) and lens e four surviving mutants. Every
+finding is fixed in 7633c28; none is disputed.
+
+| Lens | Id | Severity | Finding | Fix | Contract |
+| --- | --- | --- | --- | --- | --- |
+| a, d | A1, F1, F2 | medium | the 1.0.0 CHANGELOG credited two fixes to 0.2.0 behaviour that the PyPI 0.2.0 never had: `HstsError` already kept `code` and `offset` through pickle and copy (its attributes travel in `__dict__`), and `get_type_hints(Issue)` resolved there (the `NameError` existed only on the release branch, after `__module__` became `hstsheader`) | both entries removed; the same false claim removed from this report's baseline list and API review | reproduced first on the 0.2.0 sources (`main`) with CPython 3.13.2: four copies give `duplicate 12`, and the hints resolve; the 1.0 pickle and hints tests stay as contracts |
+| a | A2 | low | `build(Hsts(...), include_subdomains=True)` type-checked but always raises; `None` flags were undocumented | two `@overload` signatures (an `int` with flags that are `bool` or `None`, an `Hsts` with `None` only); runtime signature unchanged; `None` as "not given" documented in the docstring, README and GUIDE | `test_flags_next_to_an_hsts_are_a_type_error_for_type_checkers` (runs mypy on a consumer), `test_none_flags_mean_not_given` |
+| a | A3 | low | the `HstsError` constructor and its default code `invalid` were documented nowhere | documented in the `HstsError` docstring and the GUIDE error table (`invalid`: never raised by the library) | `test_a_caller_made_error_has_the_documented_default_code`; the GUIDE table test now raises it |
+| a | A4 | low | `## [0.1.0]` had no date and was never on PyPI | dated 2026-10-12 (commit 6bd47ec) with "Not published on PyPI" (PyPI lists only 0.2.0; no tags) | doc only |
+| b | F1 | medium | `is_preloadable` accepted RFC-valid headers that the hstspreload.org checker refuses: it cuts at every `;` (quoted strings included) and takes any name starting with `max-age` for `max-age` | new private `_checker.py` mirrors that reading (split, Go `strings.TrimSpace` set, prefix and `EqualFold` matches); each piece the checker takes for `max-age`, `includeSubDomains` or `preload` where RFC 6797 reads no such directive is the new error `preload.misread`. The second GUIDE property now excludes misread headers, which are refused even where the checker would still take them (documented) | ten tests in `tests/test_qa_round3.py`, `test_a_misread_header_is_not_preloadable` (CLI); the oracle corpus now has both classes and `test_the_checker_reads_a_misread_header_as_other_directives` |
+| b | F2 | low | README "Where Chromium differs" missed Chromium's quoted-string leniency; GUIDE said strict acceptance is "exactly" RFC 6797 | README lists the second leniency (any character inside quotes and after a backslash, from Chromium's `UnquoteImpl`); GUIDE, `Issue` and `lint` docstrings say quoted strings are read by RFC 9110 and where RFC 2616 differs | doc only |
+| c | C1 | medium | with standard input closed and no value, the command line crashed with `AttributeError` and exit 1 (the "not honoured" status) | `sys.stdin is None` takes the usage error path (exit 2) | `test_no_stdin_and_no_value_is_a_usage_error`, `test_a_process_started_without_stdin_exits_with_a_usage_error` (subprocess), `test_no_stdin_with_a_value_still_checks_it` |
+| c | C2 | low | a set of field lines gave answers depending on `PYTHONHASHSEED` | `collections.abc.Set` (sets, frozensets, dict keys and items views) raises `TypeError` | `test_unordered_collections_are_refused`, `test_dict_values_and_tuples_keep_their_order` |
+| c | C3 | low | an iterable of field lines was read to its end; an endless one never returned | at most two items are taken (`islice`); the `multiple-fields` message says "more than one" | `test_only_the_first_two_field_lines_are_read` (a generator that fails on a third pull) |
+| e | F4-M110 | medium | a head line of only spaces or tabs ended the head, untested | decided by RFC 9112 (`HTTP-message` ends at an empty line; `obs-fold = OWS CRLF RWS`): such a line continues the field above, so the head goes on; CHANGELOG, README, GUIDE | `test_a_line_of_spaces_in_a_head_continues_the_field_line`, `test_a_line_of_spaces_does_not_end_the_head` (CLI) |
+| e | F1-M97 | low | `preload.max-age-quoted` describing only the used `max-age` was not pinned | | `test_quoted_applies_only_to_the_max_age_that_was_used` |
+| e | F2-M96 | low | the same for `preload.max-age-spaced` | | `test_spaced_applies_only_to_the_max_age_that_was_used` |
+| e | F3-M99 | low | the null offset of `field.missing` was not pinned | | `test_field_missing_is_about_the_header_as_a_whole` |
+
+Every test in `tests/test_qa_round3.py` and `tests/test_qa_round3_cli.py` was run on
+2fd8202 first: 21 failed there (the misread, unordered, lazy, blank line, overload and
+stdin tests); the rest pin behaviour that was already right. The four lens e mutants,
+applied alone to 7633c28, are all killed by these contracts (M110 restored as the old
+blank line rule), and so are four mutants of the new `_checker.py` (prefix `max-age=`
+only, trimming SP and HTAB only, any directive at the offset matching, the untrimmed
+offset).
+
+The new rule was checked against the checker binary (built from `tests/oracle`) on
+30,632 headers from two seeded runs of a separate generator with both classes, Go
+whitespace and folds: no header `is_preloadable` accepts is refused by the checker, and
+with no RFC error and no `preload.misread` the verdicts and the ten year warning agree
+in every case; 169 RFC-valid misread headers are refused here though the checker takes
+them (a piece repeating a directive the header has), the documented exception.
+
+Verification at 7633c28:
+
+- On Elena's PC (CPython 3.14.2) from a fresh clone with the fetched sources, the
+  hstspreload checker, `HSTSHEADER_E2E=1` and `HSTSHEADER_E2E_PYPI=1`:
+  `ruff format --check .`, `ruff check .`, `mypy --strict src`, `mypy --strict src tests`
+  and `pytest` exit 0 (455 passed, 0 skipped).
+- On this PC, wheel and sdist built from a fresh clone of the pushed 7633c28,
+  `twine check --strict` PASSED for both, the wheel holds the package (with
+  `_checker.py`), `py.typed`, the entry point and the license; the sdist's suite with
+  `src` removed, against the installed wheel and with the checker: CPython 3.10.19, 3.11.5 and 3.12.12
+  443 passed and 3 skipped (the two e2e tests, and the mypy consumer test, mypy not being
+  installed there), CPython 3.13.2, 3.14.2 and 3.14.2t (with mypy) 444 passed and 2
+  skipped (e2e), 9 doctests each; 3.8.20 and 3.9.25 refuse the wheel.
+- The commit that records this round also rewords two README sentences (the pointer to
+  the guide on quoted strings, line wrapping); `tests/test_docs.py` and
+  `tests/test_contract_api.py` pass on it, and the four gate commands exit 0.
+
 ### Disputed findings
 
-None in rounds 1 and 2.
+None in rounds 1, 2 and 3.
