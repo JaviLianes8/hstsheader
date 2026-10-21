@@ -114,6 +114,13 @@ def test_a_character_above_latin1_stands_for_its_utf8_octets() -> None:
     assert "'preload'" in found[0].message
 
 
+def test_a_piece_ending_inside_a_run_above_latin1_is_quoted_whole() -> None:
+    header = 'max-age=31536000; preload; note="x;includeSubDomain\u017f\u3000;y"'
+    found = [i for i in preload_issues(header) if i.code == "preload.misread"]
+    assert [i.offset for i in found] == [header.index("include")]
+    assert repr("includeSubDomain\u017f") in found[0].message
+
+
 def test_a_lone_surrogate_is_not_a_space() -> None:
     assert misread_at(f'{NO_PRELOAD}; note="x;\ud800preload;y"') == []
 
