@@ -75,7 +75,12 @@ def test_changelog_has_an_entry_for_this_version() -> None:
 
 
 def _tracked_files() -> list[Path]:
-    """Files under version control; local venvs and build folders are never scanned."""
+    """Files under version control; local venvs and build folders are never scanned.
+
+    In an unpacked sdist (no .git) every file it holds is scanned instead.
+    """
+    if not (ROOT / ".git").exists():
+        return [path for path in ROOT.rglob("*") if path.is_file()]
     listing = subprocess.run(
         ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
     ).stdout.decode("utf-8")
