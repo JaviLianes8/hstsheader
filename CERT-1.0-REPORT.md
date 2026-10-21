@@ -32,7 +32,7 @@ Progress:
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655 |
-| 10 | Supported Pythons | PASS: CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
+| 10 | Supported Pythons | PASS (last run at 0687e52): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
 | 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-21 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
@@ -203,8 +203,9 @@ re-running each mutant against them). M04 and M32 are equivalent, for the reason
 At 6b6075e on Elena's PC (CPython 3.14) from a fresh clone, each command on its own, with
 the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
 `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
-`mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. Since then
-only this report changed.
+`mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. After the
+QA rounds the gates were run again at f22e655 and at 0687e52; see Round 1 and Round 2
+below.
 
 ## QA lenses (item 19)
 
@@ -256,6 +257,38 @@ Verification at f22e655:
   `max-age=300`; `| head -n 1` on a large report gives statuses `0 0 0` and an empty
   stderr; `hstsheader ""` exits 1 and empty standard input exits 2.
 
+### Round 2
+
+Five independent lenses checked 98e3f77. Every round 1 finding was confirmed fixed. The
+new findings are all fixed in 0687e52; none is disputed.
+
+| Lens | Id | Severity | Finding | Fix | Contract |
+| --- | --- | --- | --- | --- | --- |
+| a, b | A5, N1 | low | with `curl -sIL`, a first final response without the field and a later one with it gave "no Strict-Transport-Security field in the input" and exit 2 (live for apple.com, amazon.com, google.com, paypal.com) | exit 1 with the single issue `field.missing`, `field` and `policy` null; exit 2 only when no response has the field; README, GUIDE and CHANGELOG updated | `test_a_later_field_after_a_redirect_without_one_is_a_rejection`, `test_a_chain_without_the_field_anywhere_is_a_usage_error` |
+| b | N2 | low | `preload.invalid` was an error, but `header.go` raises `header.parse.invalid.preload` as a warning and the site blocks on errors only: 3 of about 61,000 differential headers were refused here and accepted by the checker | `preload.invalid` is a warning; a header whose only `preload` has a value still fails with `preload.missing` | `test_a_value_on_preload_next_to_a_bare_preload_is_only_a_warning`, `test_a_value_on_preload_is_only_a_warning_on_both_sides` (run against the checker) |
+| d | N1 | low | started with standard output closed (`>&-`), the command line printed a traceback and exited 1 | `_write` returns quietly when `sys.stdout` is `None`; the exit status keeps the verdict | `test_no_stdout_at_all_keeps_the_verdict`, `test_a_process_started_without_stdout_keeps_the_verdict` (subprocess) |
+| e | N01, N06, N07, N08, N18, N27, N29, N32, N34, N36, N40 | medium | eleven surviving mutants in `_head` (interim status match, interim-only heads), `_cli` (write error handling), `_skip` (quoted-pair and control characters in a skipped string) and `_scan` (skip over the raw text) | | `tests/test_qa_round2.py`, `tests/test_qa_round2_cli.py` |
+
+The redirect, preload and closed-stdout tests failed on 98e3f77. Each lens e mutant and
+the two fix sites (A5, N1d) were applied alone to a fresh clone of 0687e52 on Elena's PC
+(CPython 3.14.2) and run against the round 2 contracts: all 13 killed.
+
+Verification at 0687e52:
+
+- On this PC: `ruff format --check .`, `ruff check .`, `mypy --strict src` and
+  `mypy --strict src tests` exit 0.
+- On Elena's PC (CPython 3.14.2) from a fresh clone with the fetched sources and the
+  hstspreload checker: the same four commands and `pytest` exit 0 (419 passed, 2
+  skipped: the e2e tests, run next). Then with `HSTSHEADER_E2E=1` and
+  `HSTSHEADER_E2E_PYPI=1`: `tests/test_e2e_wheel.py`, `tests/test_qa_round1_cli.py` and
+  `tests/test_qa_round2_cli.py`, 20 passed.
+- On this PC, wheel and sdist built from a fresh clone of the pushed 0687e52,
+  `twine check --strict` PASSED for both, the wheel holds only the package, `py.typed`,
+  the entry point and the license; the sdist's suite with `src` removed, against the
+  installed wheel and with the checker: 410 passed and 2 skipped (e2e) on CPython
+  3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2 and 3.14.2t, 9 doctests each; 3.8.20 and
+  3.9.25 refuse the wheel.
+
 ### Disputed findings
 
-None in round 1.
+None in rounds 1 and 2.
