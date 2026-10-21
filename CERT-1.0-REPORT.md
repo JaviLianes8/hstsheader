@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 5 killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -420,6 +420,34 @@ from `tests/oracle`: `ruff format --check .`, `ruff check .`, `mypy --strict src
 `mypy --strict src tests` and `pytest` exit 0 (553 passed, 2 skipped: the two e2e tests,
 which need `HSTSHEADER_E2E` and PyPI).
 
+### Round 6
+
+Lens e checked 154ceb9 and confirmed S1 and S2 fixed: the A11, A12 and A18 repros give
+the checker's verdict, and each of those mutants is now killed with the checker and
+without it. As `src` had not changed since b41d39e, it probed the Go space set, its UTF-8
+forms and the octet map with ten mutants (B01 to B10): eight killed, two survived. As in
+round 5 the survivors were missing contracts, not wrong behaviour: the library agreed with
+the checker on every repro. Both findings are fixed with tests only, so the library and
+the CHANGELOG are unchanged; none is disputed.
+
+| Lens | Id | Severity | Finding | Contract |
+| --- | --- | --- | --- | --- |
+| e | F1 | low | a wrong member of Go's space set above U+30FF was not pinned: adding U+3164 (the hangul filler, which renders blank but is not a space to Go) to `_GO_SPACE` (B02) passed every test, since both sweeps stopped at U+30FF plus five code points | every code point from U+0080 to U+10FFFF is swept as UTF-8 octets before and after the name, and every one from U+0100 as a character before it, with thousands of `x;<form>preload` pieces in one quoted value: the misread offsets name exactly the code points trimmed, and they must be Go's spaces, each misread quoting `preload` (`tests/conftest.py`, `tests/test_qa_round6.py`); the sweep calls the misread check directly, and a test shows `preload_issues` reports the same misreads on the headers holding every Go space; `test_every_code_point_outside_ascii_is_trimmed_exactly_when_the_checker_trims_it` runs the same headers through the checker, halving each one it misreads down to single code points, and asserts the library trims exactly the code points the checker trims; the hangul filler repros as a test and as two checker cases |
+| e | F2 | low | no test put a run of characters above U+00FF both before and after a misread piece: bisecting the octet map on character offsets (B08) passed every test, while it makes `preload_issues` raise `UnicodeDecodeError` or report a false misread | `test_a_misread_between_two_wide_runs_is_quoted_whole` (the misread at offset 48, its message quoting exactly `preload`, nothing raised), `test_a_piece_between_two_wide_runs_is_not_misread` (the two other repros), and the three repros as checker cases in `CASES` |
+
+The new tests pass on 154ceb9, and each surviving mutant applied alone fails them, run
+on Elena's PC with the checker: B02 fails both library sweeps of octets, the character
+sweep, the hangul filler test, the checker cases and the checker sweep; B08 fails the
+character sweep, both wide run tests, the checker cases and the checker sweep. Without
+the checker each is still killed by `tests/test_qa_round6.py`. The library sweep takes
+about 11 seconds on this PC (7 on Elena's), the checker sweep 6 to 9 more.
+
+Verification at the commit that adds these contracts (7d7de22), on Elena's PC (CPython
+3.14.2) from a clone of the local branch with the fetched sources and the checker built
+from `tests/oracle`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (561 passed, 2 skipped: the two e2e tests,
+which need `HSTSHEADER_E2E` and PyPI).
+
 ### Disputed findings
 
-None in rounds 1 to 5.
+None in rounds 1 to 6.
