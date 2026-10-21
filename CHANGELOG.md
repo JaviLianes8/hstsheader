@@ -31,6 +31,17 @@ for an argument of the wrong type (see below).
   to `invalid` and `None`).
 - A `str` subclass passed to `parse`, `lint` or the preload checks is read as a plain
   `str`.
+- `preload_issues` no longer warns `preload.max-age-over-ten-years` for a `max-age` the
+  hstspreload.org checker cannot read (quoted, spaced around `=` or above 2^64 - 1); the
+  error for that spelling is still there. Found by running the checker itself.
+- When tolerant `parse` finds no usable `max-age` because the `max-age` directive breaks
+  the grammar, the error is that directive's syntax error; 0.2.0 could report an
+  unrelated earlier error such as a repeated unknown directive.
+
+### Fixed
+
+- Reading a value with many folded lines, and a response head with many leading blank
+  lines or folded lines, took time quadratic in the input; it is linear now.
 
 ### Added
 

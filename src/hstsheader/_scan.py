@@ -149,10 +149,13 @@ def _resync(text: str, i: int) -> int:
 def scan(text: str) -> Scan:
     """Split ``text`` into directives, recording every syntax problem as an :class:`Issue`."""
     result = Scan()
-    for fold in _FOLD.finditer(text):
+
+    def unfold(fold: re.Match[str]) -> str:
         message = "folded line (obsolete line folding), read as whitespace"
         result.issues.append(Issue("obs-fold", message, "warning", fold.start()))
-        text = text[: fold.start()] + " " * len(fold.group()) + text[fold.end() :]
+        return " " * len(fold.group())  # same length, so offsets keep pointing at the input
+
+    text = _FOLD.sub(unfold, text)
     for index, char in enumerate(text):
         if char in "\r\n\0":
             message = f"{_show(char)} is not allowed in a field value"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from ._lint import analyse
+from ._lint import Analysis, analyse
 from ._model import Hsts, HstsError
 
 
@@ -39,11 +39,19 @@ def parse(header: str | Iterable[str], *, strict: bool = False) -> Hsts:
         first = analysis.errors[0]
         raise HstsError(first.message, code=first.code, offset=first.offset)
     if analysis.max_age is None:
-        # analyse() always records an error when no max-age is usable: a max-age finding,
-        # or the syntax error that made the max-age directive unreadable.
-        reason = next(
-            (i for i in analysis.errors if i.code.startswith(("max-age", "field"))),
-            analysis.errors[0],
-        )
-        raise HstsError(reason.message, code=reason.code, offset=reason.offset)
+        raise _no_max_age(analysis)
     return Hsts(analysis.max_age, analysis.include_subdomains, analysis.preload)
+
+
+def _no_max_age(analysis: Analysis) -> HstsError:
+    """The error that explains why no max-age is usable."""
+    found = analysis.errors
+    reason = next((i for i in found if i.code.startswith(("max-age", "field"))), None)
+    if reason is None:
+        # No max-age finding, so a max-age directive broke the grammar: its syntax error is
+        # the first one at or after its start (issues come sorted by offset).
+        start = analysis.max_age_broken_at or 0
+        reason = next(
+            i for i in found if i.code == "syntax" and i.offset is not None and i.offset >= start
+        )
+    return HstsError(reason.message, code=reason.code, offset=reason.offset)

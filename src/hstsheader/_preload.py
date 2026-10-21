@@ -40,8 +40,8 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     as already valid. Then the hstspreload.org rules apply: ``includeSubDomains`` and
     ``preload`` present, and a ``max-age`` of at least :data:`PRELOAD_MIN_MAX_AGE`,
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
-    2^64 - 1). A ``max-age`` above ten years is a warning. An empty tuple or warnings only
-    means the header qualifies.
+    2^64 - 1). A ``max-age`` above ten years, written that way, is a warning. An empty
+    tuple or warnings only means the header qualifies.
 
     >>> from hstsheader import Hsts, preload_issues
     >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]
@@ -52,11 +52,15 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     if isinstance(header, Hsts):
         issues: list[Issue] = []
         max_age: int | None = header.max_age
+        unreadable = False
         subdomains, preload = header.include_subdomains, header.preload
     else:
         analysis = analyse(header)
         issues = _form_issues(analysis)
         max_age = analysis.max_age
+        unreadable = (
+            analysis.max_age_quoted or analysis.max_age_spaced or analysis.max_age_beyond_uint64
+        )
         subdomains, preload = analysis.include_subdomains, analysis.preload
     if not subdomains:
         message = "the includeSubDomains directive is required"
@@ -69,7 +73,8 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     elif max_age is not None and max_age < PRELOAD_MIN_MAX_AGE:
         message = f"max-age must be at least {PRELOAD_MIN_MAX_AGE} seconds (one year)"
         issues.append(Issue("preload.max-age-too-short", message, "error"))
-    elif max_age is not None and max_age > _TEN_YEARS:
+    elif max_age is not None and max_age > _TEN_YEARS and not unreadable:
+        # The site's checker cannot read a quoted, spaced or too long value: no warning there.
         message = "max-age is longer than ten years, an unusually long value"
         issues.append(Issue("preload.max-age-over-ten-years", message, "warning"))
     return tuple(issues)

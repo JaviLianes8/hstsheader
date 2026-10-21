@@ -33,6 +33,8 @@ class Analysis:
     max_age_spaced: bool = False
     max_age_beyond_uint64: bool = False
     soft_repeats: frozenset[int] = frozenset()
+    # Where the first max-age directive starts when the grammar made it unreadable.
+    max_age_broken_at: int | None = None
 
     @property
     def errors(self) -> tuple[Issue, ...]:
@@ -154,6 +156,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
         used is not None and used.spaced,
         used is not None and _beyond_uint64(used.value or ""),
         frozenset(soft),
+        next((offset for offset, key in found.broken if key == "max-age"), None),
     )
 
 

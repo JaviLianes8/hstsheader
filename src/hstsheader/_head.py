@@ -25,13 +25,13 @@ def _responses(lines: list[str]) -> list[list[str]]:
 
 def _unfold(lines: list[str]) -> list[str]:
     """Join obsolete folded lines (starting with SP or HTAB) onto the line before."""
-    out: list[str] = []
+    out: list[list[str]] = []
     for line in lines:
         if line[:1] in (" ", "\t") and out:
-            out[-1] += " " + line.strip(" \t")
+            out[-1].append(line.strip(" \t"))
         else:
-            out.append(line)
-    return out
+            out.append([line])
+    return [" ".join(parts) for parts in out]
 
 
 def field_lines(text: str) -> list[str] | None:
@@ -42,8 +42,8 @@ def field_lines(text: str) -> list[str] | None:
     last one is used, because that is the response the browser ends up keeping.
     """
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    while lines and not lines[0].strip(" \t"):
-        lines.pop(0)
+    first = next((i for i, line in enumerate(lines) if line.strip(" \t")), len(lines))
+    lines = lines[first:]
     if not lines:
         return None
     if not lines[0].startswith("HTTP/"):
