@@ -2,7 +2,8 @@
 
 The checker reads the header's octets as UTF-8. These headers are written as a latin-1
 decode of those octets, as the command line reads them, and the checker gets the octets
-themselves (in hex), so a lone 0xA0 reaches it as an invalid octet, not as U+00A0.
+themselves (in hex), so a lone 0xA0 reaches it as an invalid octet, not as U+00A0. A
+character above U+00FF reaches it as its UTF-8 octets, as preload_issues reads it.
 Like test_oracle_hstspreload.py, they skip while HSTSHEADER_ORACLE is unset.
 """
 
@@ -26,6 +27,11 @@ NO_PRELOAD = "max-age=31536000; includeSubDomains"
 CODES = [*range(0x08, 0x0F), 0x1F, 0x20, 0x21, 0x84, 0x85, 0x86, 0x9F, 0xA0, 0xA1, 0x167F]
 CODES += [0x1680, 0x1681, 0x1FFF, *range(0x2000, 0x200C), 0x2027, 0x2028, 0x2029, 0x202A]
 CODES += [0x202E, 0x202F, 0x2030, 0x205E, 0x205F, 0x2060, 0x2FFF, 0x3000, 0x3001]
+CODES += [0x180E, 0xFEFF]
+# Every code point to U+30FF but the surrogates, which UTF-8 cannot carry, and a few past it.
+SWEEP = [c for c in range(0x3100) if not 0xD800 <= c < 0xE000]
+SWEEP += [0xFEFF, 0xFFFD, 0x10000, 0x1F600, 0x10FFFF]
+WIDE = chr(0x3000)
 # Lone octets that are not UTF-8, which Go keeps.
 LONE = ["\x85", "\xa0", "\xc2", "\xe3\x80", "\xff"]
 # Each header, whether it is misread here, and the checker's preload, includeSubDomains
@@ -44,6 +50,8 @@ CASES = [
     (f'{GOOD}; note="x;\xa0max-age=1;y"', False, True, True, True),
     (f'{NO_PRELOAD}; note="x;\x85preload;y"', False, False, True, False),
     ("max-age=31536000; preload; include\xc5\xbfubdomains", True, True, True, True),
+    (f'{NO_PRELOAD}; note="{WIDE}x;\xc2\xa0preload;y"', True, True, True, True),
+    (f'{GOOD}; note="{WIDE}x;\xa0max-age=1;y"', False, True, True, True),
 ]
 
 
@@ -51,8 +59,14 @@ def _wire(code: int) -> str:
     return chr(code).encode("utf-8").decode("latin-1")
 
 
+def _octets(header: str) -> bytes:
+    return b"".join(
+        char.encode("latin-1") if char <= "\xff" else char.encode("utf-8") for char in header
+    )
+
+
 def _run(headers: list[str]) -> list[dict[str, Any]]:
-    payload = json.dumps([header.encode("latin-1").hex() for header in headers]).encode()
+    payload = json.dumps([_octets(header).hex() for header in headers]).encode()
     done = subprocess.run([ORACLE], input=payload, capture_output=True, check=True)
     verdicts: list[dict[str, Any]] = json.loads(done.stdout)
     assert len(verdicts) == len(headers)
@@ -80,3 +94,24 @@ def test_the_reported_cases_read_as_the_checker_reads_them() -> None:
         assert (_misread(header), seen) == (misread, expected), header
         if is_preloadable(header):
             assert verdict["errors"] == [], header
+
+
+def _quotable(form: str) -> bool:
+    return all(char == "\t" or (" " <= char <= "\xff" and char != "\x7f") for char in form)
+
+
+def test_every_code_point_is_trimmed_exactly_when_the_checker_trims_it() -> None:
+    forms = [_wire(code) for code in SWEEP] + [chr(code) for code in SWEEP if code > 0x7F]
+    latin1 = [chr(code) for code in range(0x100)] + [_wire(code) for code in range(0x80, 0x100)]
+    headers = []
+    # With a character above U+00FF after the quote, each one up to U+00FF is still one octet.
+    for tail, probes in (("", forms), (f"; {WIDE}", latin1)):
+        for form in probes:
+            headers.append(f'{NO_PRELOAD}; note="x;{form}preload;y"{tail}')
+            # Past the name, a character a quoted string cannot hold ends the quote, and
+            # RFC 6797 then reads the name itself.
+            if _quotable(form):
+                headers.append(f'{NO_PRELOAD}; note="x;preload{form};y"{tail}')
+    verdicts = _run(headers)
+    wrong = [h for h, v in zip(headers, verdicts, strict=True) if _misread(h) != v["preload"]]
+    assert wrong == []
