@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-# RFC 9111 section 1.2.2: a delta-seconds value too large to represent is read as 2^31.
+# This library's cap on max-age, by analogy with RFC 9111 section 1.2.2, where a cache that
+# cannot represent a larger delta-seconds value uses 2^31 instead.
 DELTA_SECONDS_MAX = 2147483648
 
 # hstspreload.org: the header on the base domain needs a max-age of at least one year.
 PRELOAD_MIN_MAX_AGE = 31536000
 
+# Public as hstsheader.Severity, so the annotation of Issue.severity resolves there.
 Severity = Literal["error", "warning"]
 
 
@@ -67,7 +69,7 @@ class Issue:
     offset: int | None = None
 
 
-def _check_flag(name: str, value: object) -> None:
+def check_flag(name: str, value: object) -> None:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool, got {type(value).__name__}")
 
@@ -82,7 +84,7 @@ def check_max_age(value: object) -> int:
         raise HstsError("max_age must not be negative", code="max-age.negative")
     if value > DELTA_SECONDS_MAX:
         raise HstsError(
-            f"max_age must not exceed {DELTA_SECONDS_MAX}; recipients read larger values as that",
+            f"max_age must not exceed {DELTA_SECONDS_MAX}, the cap this library applies",
             code="max-age.too-large",
         )
     return value
@@ -113,5 +115,5 @@ class Hsts:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "max_age", check_max_age(self.max_age))
-        _check_flag("include_subdomains", self.include_subdomains)
-        _check_flag("preload", self.preload)
+        check_flag("include_subdomains", self.include_subdomains)
+        check_flag("preload", self.preload)

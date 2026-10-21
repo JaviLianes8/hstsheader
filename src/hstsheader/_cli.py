@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import errno
 import json
+import os
 import sys
 from collections.abc import Sequence
 
@@ -24,6 +27,21 @@ def _issue(issue: Issue) -> dict[str, object]:
         "offset": issue.offset,
         "message": issue.message,
     }
+
+
+def _write(report: dict[str, object]) -> None:
+    """Print the report; a reader that stops early (``| head``) is not an error."""
+    try:
+        json.dump(report, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    except OSError as error:
+        # Windows reports a closed pipe as EINVAL rather than EPIPE.
+        if not isinstance(error, BrokenPipeError) and error.errno != errno.EINVAL:
+            raise
+        # Send what is still buffered to the null device, so the flush at exit stays quiet.
+        with contextlib.suppress(OSError, ValueError):
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -76,6 +94,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         report["preloadable"] = preloadable
         report["preload_issues"] = [_issue(issue) for issue in found]
         ok = preloadable
-    json.dump(report, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    _write(report)
+    # The verdict stands even when the reader stopped early.
     return 0 if ok else EXIT_REJECTED

@@ -21,7 +21,7 @@ KW = inspect.Parameter.KEYWORD_ONLY
 
 SIGNATURES = {
     "parse": [("header", POS, EMPTY), ("strict", KW, False)],
-    "lint": [("value", POS, EMPTY)],
+    "lint": [("header", POS, EMPTY)],
     "preload_issues": [("header", POS, EMPTY)],
     "is_preloadable": [("header", POS, EMPTY)],
     "build": [
@@ -109,7 +109,8 @@ CODE_EXAMPLES = {
     "max-age.no-value": "max-age",
     "max-age.not-digits": "max-age=1a",
     "duplicate": "max-age=1; max-age=2",
-    "value-not-allowed": "max-age=1; preload=1",
+    "value-not-allowed": "max-age=1; includeSubDomains=1",
+    "preload-value": "max-age=1; preload=1",
     "max-age.leading-zero": "max-age=01",
     "max-age.capped": "max-age=2147483649",
     "max-age.quoted": 'max-age="1"',
@@ -142,6 +143,7 @@ def test_every_documented_preload_code_is_produced() -> None:
         "max-age=400000000; includeSubDomains; preload",
         "max-age=1; preload",
         "max-age=1; includeSubDomains",
+        "max-age=31536000; includeSubDomains; preload=1",
     ):
         for issue in preload_issues(header):
             if issue.code.startswith("preload."):

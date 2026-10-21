@@ -8,11 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [1.0.0] - 2026-10-21
 
-The public API is now stable: the ten names in `hstsheader.__all__`, their parameter
+The public API is now stable: the eleven names in `hstsheader.__all__`, their parameter
 names and defaults, the `Issue` codes listed in the README, the `HstsError` attributes
 and the command line options, JSON keys and exit statuses. They change only in a new
-major version. Upgrading from 0.2.0 needs a change only where code catches `HstsError`
-for an argument of the wrong type (see below).
+major version. The GUIDE lists the few places where code written for 0.2.0 needs a
+change.
 
 ### Changed
 
@@ -23,6 +23,22 @@ for an argument of the wrong type (see below).
   0.2.0 these raised `HstsError` with the code `type` (or `build.name` for a name that
   is not a `str`); that code is gone. Values of the right type that a header cannot
   carry still raise `HstsError`.
+- `parse` refuses a `strict` argument that is not a `bool` with `TypeError`; 0.2.0 read
+  it by truthiness, so `strict="false"` meant strict.
+- The parameter of `lint` is named `header`, like the other readers (it was `value`).
+  Positional calls are unchanged.
+- A `preload` directive with a value (`preload=yes`) is no longer an RFC 6797 error.
+  RFC 6797 does not define `preload`, so it is an unknown directive there: strict
+  `parse` accepts the header with `preload` false, and `lint` gives the new warning
+  `preload-value` instead of the error `value-not-allowed`, which now applies to
+  `includeSubDomains` only. `preload_issues` reports it as the new error
+  `preload.invalid`, since the hstspreload.org checker refuses it.
+- The command line checks the first final response of a redirect chain
+  (`curl -sIL`), not the last: the base domain's own response is the one hstspreload.org
+  checks and the one a browser applies to that host. Interim (1xx) responses and a
+  proxy's `Connection established` are skipped.
+- The `max-age.too-large` message names 2^31 as this library's cap; RFC 6797 sets no
+  ceiling and the value follows RFC 9111 by analogy.
 - Error messages and `Issue` messages quote at most 40 characters of a directive name
   or value, followed by its length; 0.2.0 quoted the whole of it, megabytes included.
 - `Hsts`, `Issue` and `HstsError` report `hstsheader` as their module, so `repr`,
@@ -42,10 +58,19 @@ for an argument of the wrong type (see below).
 
 - Reading a value with many folded lines, and a response head with many leading blank
   lines or folded lines, took time quadratic in the input; it is linear now.
+- Skipping broken directives took time quadratic in the input when a backslash came
+  before a double quote outside a quoted string (`a=\";` repeated): an 80 KB value took
+  two minutes. It is linear now.
+- `typing.get_type_hints(Issue)` raised `NameError`, so tools that resolve dataclass
+  hints failed on it.
+- The command line printed a traceback and exited 1 when the reader of its output
+  stopped early (`| head`); it now stops quietly and the exit status still gives the
+  verdict.
 
 ### Added
 
 - `hstsheader --version`.
+- `Severity`, the type of `Issue.severity` (`Literal["error", "warning"]`).
 - Every public name has a docstring with an example that runs as a test.
 
 ## [0.2.0] - 2026-10-19

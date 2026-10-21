@@ -7,7 +7,7 @@ read, what every error means, what the command line prints and what stays stable
 
 From 1.0.0 these change only in a new major version:
 
-- the ten names in `hstsheader.__all__`, their parameter names, kinds and defaults;
+- the eleven names in `hstsheader.__all__`, their parameter names, kinds and defaults;
 - the fields of `Hsts` (`max_age`, `include_subdomains`, `preload`) and `Issue`
   (`code`, `message`, `severity`, `offset`), and the `code` and `offset` attributes of
   `HstsError`;
@@ -37,8 +37,10 @@ directive-value           = token | quoted-string
 - A quoted string follows RFC 9110 section 5.6.4: a backslash may be followed by HTAB,
   SP, a visible ASCII character or obs-text, and stands for that character.
 - `max-age` must be ASCII digits, quoted or not. Leading zeros are allowed (with a
-  warning). A value above 2147483648 is read as 2147483648 (RFC 9111 section 1.2.2),
-  without converting the digits, so a value of a million digits is cheap.
+  warning). RFC 6797 sets no ceiling; this library caps `max-age` at 2147483648 (2^31)
+  by analogy with RFC 9111 section 1.2.2, where a cache that cannot represent a larger
+  delta-seconds value uses 2^31. A larger value is read as 2147483648 without converting
+  the digits, so a value of a million digits is cheap.
 - `parse`, `lint` and `preload_issues` take one field value, or the field lines of a
   response in order; only the first line counts (RFC 6797 section 8.1), and more than one
   line adds a `multiple-fields` warning. An empty list is a `field.missing` error.
@@ -48,7 +50,9 @@ directive-value           = token | quoted-string
 **Strict reading** (`parse(value, strict=True)`) raises `HstsError` for the first finding
 of severity `error`, with its code and offset. Strict acceptance is exactly what a user
 agent following RFC 6797 honours: the grammar above, every directive at most once, a
-`max-age` with digits, no value on `includeSubDomains` or `preload`, no CR, LF or NUL.
+`max-age` with digits, no value on `includeSubDomains`, no CR, LF or NUL. RFC 6797 does
+not define `preload`, so `preload=yes` is an unknown directive to it: strict reading
+accepts the header with `preload` false, and lint warns `preload-value`.
 
 **Tolerant reading** (the default) skips a directive that breaks the grammar up to the
 next `;` outside a quoted string, keeps the first `max-age` that reads, and sets a flag
@@ -65,17 +69,18 @@ line), or is `None`. Besides the lint codes, `Hsts` and `build` use:
 | Code | Raised when |
 | --- | --- |
 | `max-age.negative` | `max_age` is below 0 |
-| `max-age.too-large` | `max_age` is above 2147483648 |
+| `max-age.too-large` | `max_age` is above 2147483648, the cap this library applies |
 | `build.name` | an extension name is not a token, or is one of the three known names |
 | `build.value` | an extension value has a control or non-ASCII character |
 | `duplicate` | two extension names are equal without regard to case |
 
 An argument of the wrong type raises `TypeError`, never `HstsError`: a `max_age` that is
-not an `int` (a `bool` included), a flag that is not a `bool`, `extensions` that is not a
-mapping, a name that is not a `str`, a value that is neither `str` nor `None`, flags
-passed next to an `Hsts`, and input to the readers that is not text. `str` and `int`
-subclasses are copied to plain values before they are checked, so they cannot change
-what is written.
+not an `int` (a `bool` included), a flag that is not a `bool` (the `strict` argument of
+`parse` included), `extensions` that is not a mapping, a name that is not a `str`, a
+value that is neither `str` nor `None`, flags passed next to an `Hsts`, and input to the
+readers that is not text (`bytes`, `bytearray` and `memoryview` included). `str` and
+`int` subclasses are copied to plain values before they are checked, so they cannot
+change what is written.
 
 Messages quote at most 40 characters of a name or value, then its length.
 
@@ -90,7 +95,8 @@ strictly in others, so the result combines both:
   here, because the site and Chromium accept it.
 - The site's own rules come next. A quoted `max-age`, space around its `=` or a value
   above 2^64 - 1 is an error, because the site cannot read it; the ten year warning
-  appears only for a `max-age` the site can read.
+  appears only for a `max-age` the site can read. A `preload` with a value is the error
+  `preload.invalid`, because the site refuses it, and it does not count as `preload`.
 
 The tests run the site's checker on generated headers and hold two properties: every
 header `is_preloadable` accepts passes the checker, and for a header with no RFC error the
@@ -105,9 +111,13 @@ hstsheader --version
 
 With `VALUE`, that text is checked: a response head when its first non-empty line is a
 status line or a `name: value` field line, else a bare field value. Without it, standard
-input is read as latin-1 the same way. In a head, folded lines are joined, the last
-response is used (so `curl -sIL` checks the final one) and every
-Strict-Transport-Security line of it is passed on, the first one counting.
+input is read as latin-1 the same way. In a head, folded lines are joined, and every
+Strict-Transport-Security line of the first final response is passed on, the first one
+counting. Interim responses (1xx) and a proxy's `200 Connection established` are not
+final. With several responses (`curl -sIL` follows redirects) the first is the answer
+for the URL that was asked for: RFC 6797 section 8.1 has a browser apply the header of
+each response, redirects included, to the host that sent it, and hstspreload.org reads
+the header on the base domain's own response rather than on the page it redirects to.
 
 The JSON object has these keys, in this order:
 
@@ -122,11 +132,24 @@ The JSON object has these keys, in this order:
 
 Exit status: 0 when the header is honoured (with `--preload`: preloadable), 1 when it is
 not, 2 for usage errors, including input without the field and an empty standard input.
+An empty `VALUE` argument is a value to check, so it exits 1. When the reader of the
+output stops early (`| head`), the rest is discarded quietly and the exit status still
+gives the verdict.
 
 ## Upgrading from 0.2.0
 
-Only code that catches `HstsError` for an argument of the wrong type needs a change:
-catch `TypeError` there. The other changes in the
+Code may need a change in these places:
+
+- Catching `HstsError` for an argument of the wrong type: catch `TypeError` there. This
+  includes a `strict` argument that is not a `bool`, which 0.2.0 read by truthiness.
+- Calling `lint(value=...)` by keyword: the parameter is `header` now, like the other
+  readers. Positional calls are unchanged.
+- Relying on `preload=<value>` being an error: it is the warning `preload-value` now,
+  and the preload check reports it as `preload.invalid`.
+- Piping `curl -sIL` into the command line: the first final response is checked, not
+  the last.
+
+The other changes in the
 [changelog](https://github.com/JaviLianes8/hstsheader/blob/main/CHANGELOG.md) make
 results more precise and do not change any signature.
 

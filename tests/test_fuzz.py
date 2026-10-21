@@ -45,10 +45,13 @@ def _oracle(text: str) -> Hsts | None:
     age = seen.get("max-age")
     if "max-age" not in seen or age is None or not re.fullmatch(r"[0-9]+", age):
         return None
-    flags = {key: key in seen for key in ("includesubdomains", "preload")}
-    if any(flags[key] and seen[key] is not None for key in flags):
+    # RFC 6797 defines includeSubDomains as valueless; preload is not in it, so a preload
+    # with a value is just an unknown directive.
+    if "includesubdomains" in seen and seen["includesubdomains"] is not None:
         return None
-    return Hsts(min(int(age), 2**31), flags["includesubdomains"], flags["preload"])
+    subdomains = "includesubdomains" in seen
+    preload = "preload" in seen and seen["preload"] is None
+    return Hsts(min(int(age), 2**31), subdomains, preload)
 
 
 def _strict(text: str | list[str]) -> Hsts | None:

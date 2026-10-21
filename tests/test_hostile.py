@@ -26,6 +26,11 @@ VALUE_SHAPES: dict[str, Callable[[int], str]] = {
     "long-token": lambda n: "max-age=1; " + "a" * n,
     "long-digits": lambda n: "max-age=" + "9" * n,
     "spaces": lambda n: "max-age=1" + " " * n + ";",
+    # A backslash before a quote outside a quoted string: each skip used to rescan the tail.
+    "escaped-quotes": lambda n: 'a=\\";' * (n // 5),
+    "bare-escaped-quotes": lambda n: '\\";' * (n // 3),
+    "escaped-quotes-max-age": lambda n: "max-age=1; " + 'max-age=\\";' * (n // 11),
+    "escaped-quotes-bad-end": lambda n: 'a=\\";' * (n // 5) + "\x01",
 }
 HEAD_SHAPES: dict[str, Callable[[int], str]] = {
     "blank-lines": lambda n: "\n" * n + "Strict-Transport-Security: max-age=1",

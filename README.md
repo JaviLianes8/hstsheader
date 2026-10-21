@@ -36,8 +36,10 @@ unknown directives are ignored and `max-age` may be quoted, as RFC 6797 section 
 allows. A folded line counts as whitespace. Inside a quoted string, a backslash may be
 followed by HTAB, SP, a visible ASCII character or obs-text (RFC 9110 section 5.6.4,
 stricter on purpose than the RFC 2616 rule, which allowed any ASCII character there).
-`max-age` must be ASCII digits; a value above 2147483648 (2^31, the ceiling RFC
-9111 section 1.2.2 sets for delta-seconds) is read as 2147483648.
+`max-age` must be ASCII digits. RFC 6797 sets no ceiling on it; this library caps it at
+2147483648 (2^31), by analogy with RFC 9111 section 1.2.2, where a cache that cannot
+represent a larger delta-seconds value uses 2^31. A larger value is read as 2147483648,
+and `Hsts` and `build` refuse one.
 
 ## Strict or tolerant
 
@@ -60,8 +62,9 @@ except HstsError as error:
 ```
 
 Strict mode refuses a missing or non-numeric `max-age`, a directive that appears twice, a
-value on `includeSubDomains` or `preload`, anything outside the token and quoted-string
-grammar, and CR, LF or NUL. Both modes take the field lines of a response as a list and
+value on `includeSubDomains`, anything outside the token and quoted-string grammar, and
+CR, LF or NUL. RFC 6797 does not define `preload`, so `preload=yes` is an unknown
+directive there: the header is honoured, `preload` stays `False`, and lint warns. Both modes take the field lines of a response as a list and
 read only the first one, as RFC 6797 section 8.1 requires.
 
 ## Lint a header
@@ -89,7 +92,7 @@ Offsets index the field value; an empty directive points at its semicolon.
 | `max-age.no-value` | error | `max-age` without `=` |
 | `max-age.not-digits` | error | the value is not ASCII digits |
 | `duplicate` | error | a directive appears more than once |
-| `value-not-allowed` | error | `includeSubDomains` or `preload` with a value |
+| `value-not-allowed` | error | `includeSubDomains` with a value |
 | `field.missing` | error | an empty list of field lines |
 | `max-age.leading-zero` | warning | the value starts with 0 |
 | `max-age.capped` | warning | the value is above 2147483648 and is read as that |
@@ -99,6 +102,7 @@ Offsets index the field value; an empty directive points at its semicolon.
 | `max-age.zero-subdomains` | warning | `max-age=0` makes `includeSubDomains` pointless |
 | `empty-directive` | warning | an extra `;` |
 | `unknown-directive` | warning | a directive this library does not know is ignored |
+| `preload-value` | warning | `preload` with a value: an unknown directive to RFC 6797, ignored |
 | `multiple-fields` | warning | more than one field line; only the first counts |
 
 ## Check preload eligibility
@@ -131,6 +135,7 @@ network; that part is out of scope here.
 | `preload.max-age-quoted` | error | a quoted `max-age`, which the site's checker refuses |
 | `preload.max-age-spaced` | error | space around the `=` of `max-age` |
 | `preload.max-age-unreadable` | error | a `max-age` above 2^64 - 1 |
+| `preload.invalid` | error | `preload` with a value, which the site's checker refuses |
 | `preload.max-age-over-ten-years` | warning | a `max-age` above ten years |
 
 ## Build a header
@@ -163,17 +168,20 @@ It prints the policy and the findings as JSON (the keys are listed in the
 [guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#command-line)).
 The exit status is 0 when a user agent following RFC 6797 honours the header (with
 `--preload`: when it meets the preload rules), 1 when it does not, and 2 when the input
-has no Strict-Transport-Security field (empty input included). A head ends at its blank
-line, folded lines are joined, pasted fields without a status line are accepted, and
-with several responses (`curl -sIL`) the last one is checked, since that is the one the
-browser keeps.
+has no Strict-Transport-Security field (empty standard input included). A head ends at
+its blank line, folded lines are joined and pasted fields without a status line are
+accepted. With several responses (`curl -sIL`) the first final one is checked, the
+answer for the URL you asked for: a browser applies each response's header to the host
+that sent it, and hstspreload.org reads the header on the base domain's own response,
+not on the page it redirects to. Interim (1xx) responses and a proxy's `Connection
+established` are skipped. To check where a redirect leads, run it on that URL.
 
 ## Where Chromium differs
 
-This library follows RFC 6797. Chromium's parser is more lenient in two ways and stricter
+This library follows RFC 6797. Chromium's parser is more lenient in one way and stricter
 in one: it accepts a repeated directive other than `max-age` and `includeSubDomains`
-(so a repeated `preload` still works there), it does not treat `preload` as special, and
-it stores at most one year of `max-age` whatever the header says.
+(so a repeated `preload` still works there), and it stores at most one year of `max-age`
+whatever the header says.
 
 ## API
 
@@ -186,14 +194,15 @@ it stores at most one year of `max-age` whatever the header says.
 | `build(max_age, *, include_subdomains, preload, extensions)` | write a header value |
 | `Hsts` | frozen dataclass: `max_age`, `include_subdomains`, `preload`, checked on creation |
 | `Issue` | frozen dataclass: `code`, `message`, `severity`, `offset` |
+| `Severity` | the type of `Issue.severity`: `Literal["error", "warning"]` |
 | `HstsError` | a `ValueError` with `code` and `offset`; wrong argument types raise `TypeError` |
-| `DELTA_SECONDS_MAX` | 2147483648, the ceiling for `max-age` |
+| `DELTA_SECONDS_MAX` | 2147483648, the cap this library applies to `max-age` |
 | `PRELOAD_MIN_MAX_AGE` | 31536000, the shortest `max-age` the preload list takes |
 
 ## Sources
 
 RFC 6797 (the header and the user agent processing model), RFC 2616 (the grammar it
-builds on), RFC 9110 (token, quoted-string, field values), RFC 9111 (delta-seconds), the
+builds on), RFC 9110 (token, quoted-string, field values), RFC 9111 (the 2^31 cap), the
 hstspreload.org requirements and its header checker, and Chromium's header parser. The
 tests check the library against copies of these files; `python scripts/fetch_upstream.py`
 fetches them and `tests/upstream/MANIFEST.json` pins each one by URL, revision and sha256.

@@ -10,6 +10,9 @@ from ._model import DELTA_SECONDS_MAX, Issue
 from ._scan import Directive, scan
 
 _VALUELESS = {"includesubdomains": "includeSubDomains", "preload": "preload"}
+# RFC 6797 defines includeSubDomains as valueless; preload is not in it, so a preload with a
+# value is an unknown directive there, while the hstspreload.org checker refuses it.
+_PRELOAD_VALUE = "preload with a value is not the preload directive and is ignored"
 # Chromium refuses a header only when these repeat; the preload checker only warns otherwise.
 _HARD_REPEATS = frozenset({"max-age", "includesubdomains"})
 # The hstspreload.org checker reads max-age as a 64-bit unsigned integer.
@@ -35,6 +38,8 @@ class Analysis:
     soft_repeats: frozenset[int] = frozenset()
     # Where the first max-age directive starts when the grammar made it unreadable.
     max_age_broken_at: int | None = None
+    # A preload directive carried a value: ignored by RFC 6797, refused by hstspreload.org.
+    preload_valued: bool = False
 
     @property
     def errors(self) -> tuple[Issue, ...]:
@@ -118,6 +123,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     used: Directive | None = None
     max_age: int | None = None
     flags = {key: False for key in _VALUELESS}
+    preload_valued = False
     for offset, key, directive in sorted(order, key=lambda item: item[0]):
         if key in seen:
             name = shorten(directive.name if directive else key)
@@ -133,11 +139,14 @@ def analyse(value: str | Iterable[str]) -> Analysis:
             if max_age is None and seconds is not None:
                 max_age, used = seconds, directive
         elif key in _VALUELESS:
-            if directive.value is not None:
+            if directive.value is None:
+                flags[key] = True
+            elif key == "preload":
+                preload_valued = True
+                issues.append(Issue("preload-value", _PRELOAD_VALUE, "warning", offset))
+            else:
                 message = f"{_VALUELESS[key]} takes no value"
                 issues.append(Issue("value-not-allowed", message, "error", offset))
-            else:
-                flags[key] = True
         else:
             message = f"unknown directive {shorten(directive.name)} is ignored"
             issues.append(Issue("unknown-directive", message, "warning", offset))
@@ -157,10 +166,11 @@ def analyse(value: str | Iterable[str]) -> Analysis:
         used is not None and _beyond_uint64(used.value or ""),
         frozenset(soft),
         next((offset for offset, key in found.broken if key == "max-age"), None),
+        preload_valued,
     )
 
 
-def lint(value: str | Iterable[str]) -> tuple[Issue, ...]:
+def lint(header: str | Iterable[str]) -> tuple[Issue, ...]:
     """List every finding about a Strict-Transport-Security value, in field order.
 
     Pass one field value, or every field line of a response (only the first is
@@ -174,4 +184,4 @@ def lint(value: str | Iterable[str]) -> tuple[Issue, ...]:
     >>> lint("max-age=31536000; includeSubDomains")
     ()
     """  # noqa: E501
-    return analyse(value).issues
+    return analyse(header).issues
