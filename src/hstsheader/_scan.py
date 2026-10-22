@@ -19,8 +19,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext
+from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext, shorten
 from ._model import Issue
+from ._skip import Skipper
 
 # RFC 9110 section 5.5: CR, LF and NUL are invalid; a recipient may replace them with SP.
 _REPLACED = str.maketrans({"\r": " ", "\n": " ", "\0": " "})
@@ -120,38 +121,26 @@ def _rest(text: str, i: int, name: str, start: int) -> tuple[Directive, int]:
             end = _token(text, i)
             if end == i:
                 found = "the end" if i == len(text) else _show(text[i])
-                raise _Broken(f"expected a value for {name}, found {found}", i)
+                raise _Broken(f"expected a value for {shorten(name)}, found {found}", i)
             value, i = text[i:end], end
         i = _skip_ows(text, i)
     if i < len(text) and text[i] != ";":
-        raise _Broken(f"unexpected {_show(text[i])} after {name}; directives end at ';'", i)
+        message = f"unexpected {_show(text[i])} after {shorten(name)}; directives end at ';'"
+        raise _Broken(message, i)
     key = ascii_lower(name)
     return Directive(name, key, value, quoted, start, value_offset, spaced), i
-
-
-def _resync(text: str, i: int) -> int:
-    """Index of the next ';' outside a quoted string, or the end of the text."""
-    while i < len(text) and text[i] != ";":
-        if text[i] == '"':
-            try:
-                i = _quoted(text, i)[1]
-                continue
-            except _Broken:
-                # A quote that never closes would swallow everything after it; give up on
-                # it and resume at the next plain semicolon instead.
-                nxt = text.find(";", i)
-                return len(text) if nxt < 0 else nxt
-        i += 1
-    return i
 
 
 def scan(text: str) -> Scan:
     """Split ``text`` into directives, recording every syntax problem as an :class:`Issue`."""
     result = Scan()
-    for fold in _FOLD.finditer(text):
+
+    def unfold(fold: re.Match[str]) -> str:
         message = "folded line (obsolete line folding), read as whitespace"
         result.issues.append(Issue("obs-fold", message, "warning", fold.start()))
-        text = text[: fold.start()] + " " * len(fold.group()) + text[fold.end() :]
+        return " " * len(fold.group())  # same length, so offsets keep pointing at the input
+
+    text = _FOLD.sub(unfold, text)
     for index, char in enumerate(text):
         if char in "\r\n\0":
             message = f"{_show(char)} is not allowed in a field value"
@@ -159,6 +148,7 @@ def scan(text: str) -> Scan:
     text = text.translate(_REPLACED)
     if not text.strip(OWS):
         return result
+    skipper = Skipper(text)
     i = 0
     while True:
         start = i = _skip_ows(text, i)
@@ -174,7 +164,7 @@ def scan(text: str) -> Scan:
             except _Broken as broken:
                 result.issues.append(Issue("syntax", broken.message, "error", broken.offset))
                 result.broken.append((start, ascii_lower(broken.name)))
-                i = _resync(text, start)
+                i = skipper.resync(start)
         if i >= len(text):
             return result
         i += 1

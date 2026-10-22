@@ -1,5 +1,7 @@
 # hstsheader
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Parse, check and build the HTTP Strict-Transport-Security header, typed and zero-dependency.
 
 - Reads the header the way RFC 6797 says a user agent must, or tolerantly for logs and
@@ -34,8 +36,10 @@ unknown directives are ignored and `max-age` may be quoted, as RFC 6797 section 
 allows. A folded line counts as whitespace. Inside a quoted string, a backslash may be
 followed by HTAB, SP, a visible ASCII character or obs-text (RFC 9110 section 5.6.4,
 stricter on purpose than the RFC 2616 rule, which allowed any ASCII character there).
-`max-age` must be ASCII digits; a value above 2147483648 (2^31, the ceiling RFC
-9111 section 1.2.2 sets for delta-seconds) is read as 2147483648.
+`max-age` must be ASCII digits. RFC 6797 sets no ceiling on it; this library caps it at
+2147483648 (2^31), by analogy with RFC 9111 section 1.2.2, where a cache that cannot
+represent a larger delta-seconds value uses 2^31. A larger value is read as 2147483648,
+and `Hsts` and `build` refuse one.
 
 ## Strict or tolerant
 
@@ -58,8 +62,9 @@ except HstsError as error:
 ```
 
 Strict mode refuses a missing or non-numeric `max-age`, a directive that appears twice, a
-value on `includeSubDomains` or `preload`, anything outside the token and quoted-string
-grammar, and CR, LF or NUL. Both modes take the field lines of a response as a list and
+value on `includeSubDomains`, anything outside the token and quoted-string grammar, and
+CR, LF or NUL. RFC 6797 does not define `preload`, so `preload=yes` is an unknown
+directive there: the header is honoured, `preload` stays `False`, and lint warns. Both modes take the field lines of a response as a list and
 read only the first one, as RFC 6797 section 8.1 requires.
 
 ## Lint a header
@@ -75,8 +80,11 @@ for issue in lint('max-age="031536000"; includeSubDomains=yes;'):
 # warning empty-directive 42
 ```
 
-An `error` means a user agent that follows RFC 6797 ignores the whole header. A
-`warning` marks something legal that is likely a mistake or that some checkers refuse.
+An `error` means a user agent that follows RFC 6797 ignores the whole header, with quoted
+strings read by the RFC 9110 rules (the
+[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#reading-a-value)
+says where the older RFC 2616 rules differ). A `warning` marks something legal that is
+likely a mistake or that some checkers refuse.
 Offsets index the field value; an empty directive points at its semicolon.
 
 | Code | Severity | Meaning |
@@ -87,7 +95,7 @@ Offsets index the field value; an empty directive points at its semicolon.
 | `max-age.no-value` | error | `max-age` without `=` |
 | `max-age.not-digits` | error | the value is not ASCII digits |
 | `duplicate` | error | a directive appears more than once |
-| `value-not-allowed` | error | `includeSubDomains` or `preload` with a value |
+| `value-not-allowed` | error | `includeSubDomains` with a value |
 | `field.missing` | error | an empty list of field lines |
 | `max-age.leading-zero` | warning | the value starts with 0 |
 | `max-age.capped` | warning | the value is above 2147483648 and is read as that |
@@ -97,6 +105,7 @@ Offsets index the field value; an empty directive points at its semicolon.
 | `max-age.zero-subdomains` | warning | `max-age=0` makes `includeSubDomains` pointless |
 | `empty-directive` | warning | an extra `;` |
 | `unknown-directive` | warning | a directive this library does not know is ignored |
+| `preload-value` | warning | `preload` with a value: an unknown directive to RFC 6797, ignored |
 | `multiple-fields` | warning | more than one field line; only the first counts |
 
 ## Check preload eligibility
@@ -113,14 +122,28 @@ for issue in preload_issues("max-age=10886400; preload"):
 ```
 
 The rules are the header requirements on hstspreload.org: `includeSubDomains` and
-`preload` present and a `max-age` of at least 31536000 seconds. The site's checker also
-refuses a quoted `max-age`, space around its `=` and a value above 2^64 - 1, treats
-`max-age=0` as a removal request and warns above ten years; the same findings come back
-as `preload.max-age-quoted`, `preload.max-age-spaced`, `preload.max-age-unreadable`,
-`preload.max-age-zero` and the warning `preload.max-age-over-ten-years`. RFC errors are
-included, except a repeated directive other than `max-age` and `includeSubDomains`, which
-the site only warns about and which comes back as a warning. The site also checks redirects, certificates and
+`preload` present and a `max-age` of at least 31536000 seconds. The site's checker is
+stricter than RFC 6797 about how `max-age` is written and treats `max-age=0` as a
+removal request. RFC errors are included, except a repeated directive other than
+`max-age` and `includeSubDomains`, which the site only warns about and which comes back
+as a warning. The site's checker also cuts the header at every `;`, even inside a quoted
+string, and takes any name that starts with `max-age` for `max-age`; where that makes it
+see a `max-age`, `includeSubDomains` or `preload` that RFC 6797 does not, the header is
+refused with `preload.misread`. The site also checks redirects, certificates and
 subdomains over the network; that part is out of scope here.
+
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| `preload.subdomains-missing` | error | no `includeSubDomains` |
+| `preload.missing` | error | no `preload` |
+| `preload.max-age-too-short` | error | `max-age` below 31536000 |
+| `preload.max-age-zero` | error | `max-age=0`, a removal request |
+| `preload.max-age-quoted` | error | a quoted `max-age`, which the site's checker refuses |
+| `preload.max-age-spaced` | error | space around the `=` of `max-age` |
+| `preload.max-age-unreadable` | error | a `max-age` above 2^64 - 1 |
+| `preload.misread` | error | the site's checker reads a directive that is not there, such as `max-agex` or a `;` inside quotes |
+| `preload.max-age-over-ten-years` | warning | a `max-age` above ten years |
+| `preload.invalid` | warning | `preload` with a value, which does not count as `preload` |
 
 ## Build a header
 
@@ -133,11 +156,13 @@ print(build(Hsts(600, preload=True), extensions={"report-uri": "https://example.
 # max-age=600; preload; report-uri="https://example.com/r;1"
 ```
 
-Flags must be `bool`, `max_age` an `int` from 0 to 2147483648. Extension names must be
-HTTP tokens and cannot repeat or shadow the three known directives; values that are not
-tokens are quoted, and control or non-ASCII characters raise `HstsError`, so a value
-cannot smuggle a second header line. For every valid policy,
-`parse(build(policy), strict=True) == policy`.
+Flags must be `bool`, or `None` (the default) for not given, and `max_age` an `int` (else
+`TypeError`), from 0 to 2147483648 (else `HstsError`). An `Hsts` carries its own flags:
+passing one next to it raises `TypeError`, and a type checker reports that call too.
+Extension names must be HTTP tokens and cannot repeat or shadow the
+three known directives; values that are not tokens are quoted, and control or non-ASCII
+characters raise `HstsError`, so a value cannot smuggle a second header line. For every
+valid policy, `parse(build(policy), strict=True) == policy`.
 
 ## Command line
 
@@ -145,21 +170,34 @@ cannot smuggle a second header line. For every valid policy,
 $ hstsheader "max-age=600; includeSubDomains"
 $ curl -sI https://example.com | hstsheader --preload
 $ python -m hstsheader "max-age=600"
+$ hstsheader --version
 ```
 
-It prints the policy and the findings as JSON. The exit status is 0 when a user agent
-following RFC 6797 honours the header (with `--preload`: when it meets the preload
-rules), 1 when it does not, and 2 when the input has no Strict-Transport-Security field
-(empty input included). A head ends at its blank line, folded lines are joined, pasted
-fields without a status line are accepted, and with several responses (`curl -sIL`) the
-last one is checked, since that is the one the browser keeps.
+It prints the policy and the findings as JSON (the keys are listed in the
+[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#command-line)).
+The exit status is 0 when a user agent following RFC 6797 honours the header (with
+`--preload`: when it meets the preload rules), 1 when it does not, and 2 when no
+response in the input has a Strict-Transport-Security field (empty standard input
+included). A head ends at
+its empty line, folded lines are joined (a line of only spaces or tabs is a fold, not the
+end of the head) and pasted fields without a status line are accepted. With several
+responses (`curl -sIL`) the first final one is checked, the
+answer for the URL you asked for: a browser applies each response's header to the host
+that sent it, and hstspreload.org reads the header on the base domain's own response,
+not on the page it redirects to. Interim (1xx) responses and a proxy's `Connection
+established` are skipped. When the first final response has no field but a later one
+has it, the base domain sends no header: the exit status is 1 and the only issue is
+`field.missing`, with `field` and `policy` null. To check where a redirect leads, run
+it on that URL.
 
 ## Where Chromium differs
 
-This library follows RFC 6797. Chromium's parser is more lenient in two ways and stricter
-in one: it accepts a repeated directive other than `max-age` and `includeSubDomains`
-(so a repeated `preload` still works there), it does not treat `preload` as special, and
-it stores at most one year of `max-age` whatever the header says.
+This library follows RFC 6797. Chromium's parser, as its source reads, is more lenient in
+two ways and stricter in one: it accepts a repeated directive other than `max-age` and
+`includeSubDomains` (so a repeated `preload` still works there); it accepts any
+character inside a quoted string, control characters and DEL included, and any
+character after a backslash there, where this library follows the RFC 9110 rules; and it
+stores at most one year of `max-age` whatever the header says.
 
 ## API
 
@@ -172,31 +210,50 @@ it stores at most one year of `max-age` whatever the header says.
 | `build(max_age, *, include_subdomains, preload, extensions)` | write a header value |
 | `Hsts` | frozen dataclass: `max_age`, `include_subdomains`, `preload`, checked on creation |
 | `Issue` | frozen dataclass: `code`, `message`, `severity`, `offset` |
-| `HstsError` | a `ValueError` with `code` and `offset` |
-| `DELTA_SECONDS_MAX` | 2147483648, the ceiling for `max-age` |
+| `Severity` | the type of `Issue.severity`: `Literal["error", "warning"]` |
+| `HstsError` | a `ValueError` with `code` and `offset`; wrong argument types raise `TypeError` |
+| `DELTA_SECONDS_MAX` | 2147483648, the cap this library applies to `max-age` |
 | `PRELOAD_MIN_MAX_AGE` | 31536000, the shortest `max-age` the preload list takes |
 
 ## Sources
 
-RFC 6797 (the header and the browser processing model), RFC 2616 (the grammar it builds
-on), RFC 9110 (token, quoted-string, field values), RFC 9111 (delta-seconds), the
+RFC 6797 (the header and the user agent processing model), RFC 2616 (the grammar it
+builds on), RFC 9110 (token, quoted-string, field values), RFC 9111 (the 2^31 cap), the
 hstspreload.org requirements and its header checker, and Chromium's header parser. The
 tests check the library against copies of these files; `python scripts/fetch_upstream.py`
 fetches them and `tests/upstream/MANIFEST.json` pins each one by URL, revision and sha256.
-Those tests skip until the files are fetched.
+The tests also run the hstspreload.org checker itself, built from its Go source, on tens
+of thousands of generated headers and compare verdicts. The
+[guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#how-it-is-checked)
+has the details.
 
 ## Why
 
-RFC 6797 defines a tiny header, yet Python has no standalone, typed, zero-dependency
-codec for it. The existing options are all tied to something larger: `apifrom` buries
-the logic in a framework utility, `pyramid_hsts` only writes the header, and
-PyGObject's `Soup.HSTSPolicy` pulls in the libsoup and GObject stack. This library is a
-single-purpose reader, checker and writer with full type hints and nothing to install
-alongside it.
+The PyPI packages that handle this header, as checked on 2026-10-21 (latest releases,
+source read and run):
+
+- `secure` 2.0.1, `flask-talisman` 1.1.0 and `pyramid_hsts` 1.3.0 write the header for a
+  web framework; none of them reads one.
+- `hstspreload` 2025.1.1 answers whether a host is on Chromium's preload list; it does
+  not look at headers.
+- `apifrom` 1.0.0, a REST API framework with ten runtime dependencies, has a
+  `get_hsts_directives` helper that splits on `;`, so a quoted `;` breaks it; it reads
+  `max-age=abc` as 0 and keeps the last of two `max-age` directives, the opposite of what
+  RFC 6797 asks.
+
+hstsheader reads the header as a user agent must, explains every problem with a code and
+an offset, checks the preload rules and writes headers that cannot be injected, with no
+dependencies.
+
+## Documentation
+
+- [Guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md): the reading
+  rules, every error, the command line output and the stability promise.
+- [Changelog](https://github.com/JaviLianes8/hstsheader/blob/main/CHANGELOG.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/JaviLianes8/hstsheader/blob/main/LICENSE).
 
 ## Links
 

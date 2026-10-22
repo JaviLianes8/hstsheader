@@ -15,8 +15,21 @@ Those files are not in the repository; fetch them once with
 `python scripts/fetch_upstream.py` (each is checked against `tests/upstream/MANIFEST.json`).
 Without them the tests that need them are skipped.
 
+The hstspreload.org checker itself runs in `tests/test_oracle_hstspreload.py` and
+`tests/test_oracle_octets.py`; each header reaches it as its octets in hex, so octets that
+are not UTF-8 arrive unchanged. Build it
+from `tests/oracle` with Go (it pins the checker's source by commit in `go.mod` and
+`go.sum`) and point `HSTSHEADER_ORACLE` at the program:
+
+```
+cd tests/oracle
+go build -o hstspreload-oracle .
+HSTSHEADER_ORACLE=$PWD/hstspreload-oracle pytest ../test_oracle_hstspreload.py ../test_oracle_octets.py
+```
+
 The installed-wheel test builds and installs the package; run it with
-`HSTSHEADER_E2E=1 pytest tests/test_e2e_wheel.py`.
+`HSTSHEADER_E2E=1 pytest tests/test_e2e_wheel.py`. With `HSTSHEADER_E2E_PYPI=1` as well
+it also installs the release on PyPI and upgrades it in place to the built wheel.
 
 ## Before you open a pull request
 

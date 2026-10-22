@@ -32,12 +32,12 @@ def test_build_rejects_negative_max_age() -> None:
 
 
 def test_build_rejects_non_integer_max_age() -> None:
-    with pytest.raises(HstsError):
-        build("31536000")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="max_age must be an int, got str"):
+        build("31536000")  # type: ignore[call-overload]
 
 
 def test_build_rejects_bool_max_age() -> None:
-    with pytest.raises(HstsError):
+    with pytest.raises(TypeError, match="got bool"):
         build(True)
 
 
@@ -49,8 +49,8 @@ def test_build_caps_max_age_at_two_to_the_31() -> None:
 
 @pytest.mark.parametrize("flag", ["include_subdomains", "preload"])
 def test_build_refuses_flags_that_are_not_bool(flag: str) -> None:
-    with pytest.raises(HstsError):
-        build(1, **{flag: "no"})  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match=f"{flag} must be a bool, got str"):
+        build(1, **{flag: "no"})  # type: ignore[call-overload]
 
 
 def test_build_takes_an_hsts_object() -> None:
@@ -61,7 +61,7 @@ def test_build_takes_an_hsts_object() -> None:
 @pytest.mark.parametrize("flag", ["include_subdomains", "preload"])
 def test_build_refuses_flags_next_to_an_hsts_object(flag: str) -> None:
     with pytest.raises(TypeError):
-        build(Hsts(5), **{flag: False})  # type: ignore[arg-type]
+        build(Hsts(5), **{flag: False})  # type: ignore[call-overload]
 
 
 def test_extensions_follow_the_known_directives_in_order() -> None:
@@ -105,9 +105,9 @@ def test_extension_names_must_be_unique_ignoring_case() -> None:
 
 
 def test_extension_arguments_of_the_wrong_type_are_refused() -> None:
-    with pytest.raises(HstsError):
+    with pytest.raises(TypeError, match="extension x needs a str value or None"):
         build(5, extensions={"x": 1})  # type: ignore[dict-item]
-    with pytest.raises(HstsError):
+    with pytest.raises(TypeError, match="extension names must be str, got int"):
         build(5, extensions={1: None})  # type: ignore[dict-item]
-    with pytest.raises(HstsError):
-        build(5, extensions=[("x", None)])  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="mapping"):
+        build(5, extensions=[("x", None)])  # type: ignore[call-overload]

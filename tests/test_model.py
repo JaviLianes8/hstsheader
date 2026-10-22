@@ -13,9 +13,15 @@ def test_hsts_is_frozen() -> None:
         policy.max_age = 2  # type: ignore[misc]
 
 
-@pytest.mark.parametrize("value", [-1, DELTA_SECONDS_MAX + 1, True, 1.0, "1", None])
-def test_hsts_refuses_an_invalid_max_age(value: object) -> None:
+@pytest.mark.parametrize("value", [-1, DELTA_SECONDS_MAX + 1])
+def test_hsts_refuses_a_max_age_out_of_range(value: int) -> None:
     with pytest.raises(HstsError):
+        Hsts(value)
+
+
+@pytest.mark.parametrize("value", [True, 1.0, "1", None])
+def test_hsts_refuses_a_max_age_that_is_not_an_int(value: object) -> None:
+    with pytest.raises(TypeError, match="max_age must be an int"):
         Hsts(value)  # type: ignore[arg-type]
 
 
@@ -27,10 +33,10 @@ def test_hsts_accepts_the_whole_range() -> None:
 @pytest.mark.parametrize("field", ["include_subdomains", "preload"])
 @pytest.mark.parametrize("value", [1, "yes", None])
 def test_hsts_flags_must_be_bool(field: str, value: object) -> None:
-    with pytest.raises(HstsError) as caught:
+    with pytest.raises(TypeError) as caught:
         Hsts(1, **{field: value})  # type: ignore[arg-type]
-    assert caught.value.code == "type"
-    assert field in str(caught.value)
+    assert not isinstance(caught.value, HstsError)
+    assert str(caught.value) == f"{field} must be a bool, got {type(value).__name__}"
 
 
 def test_hsts_error_is_a_value_error_with_code_and_offset() -> None:

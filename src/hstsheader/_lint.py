@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
+from itertools import islice
 
-from ._chars import DIGITS
+from ._chars import DIGITS, shorten
 from ._model import DELTA_SECONDS_MAX, Issue
 from ._scan import Directive, scan
 
 _VALUELESS = {"includesubdomains": "includeSubDomains", "preload": "preload"}
+# RFC 6797 defines includeSubDomains as valueless; preload is not in it, so a preload with a
+# value is an unknown directive there, and the hstspreload.org checker only warns.
+_PRELOAD_VALUE = "preload with a value is not the preload directive and is ignored"
 # Chromium refuses a header only when these repeat; the preload checker only warns otherwise.
 _HARD_REPEATS = frozenset({"max-age", "includesubdomains"})
 # The hstspreload.org checker reads max-age as a 64-bit unsigned integer.
@@ -33,6 +37,13 @@ class Analysis:
     max_age_spaced: bool = False
     max_age_beyond_uint64: bool = False
     soft_repeats: frozenset[int] = frozenset()
+    # Where the first max-age directive starts when the grammar made it unreadable.
+    max_age_broken_at: int | None = None
+    # A preload directive carried a value: ignored by RFC 6797, a warning on hstspreload.org.
+    preload_valued: bool = False
+    # The field line read, and (offset, lower-cased name) of every directive in it.
+    text: str = ""
+    names: tuple[tuple[int, str], ...] = ()
 
     @property
     def errors(self) -> tuple[Issue, ...]:
@@ -60,7 +71,8 @@ def _max_age(directive: Directive, issues: list[Issue]) -> int | None:
         issues.append(Issue("max-age.no-value", "max-age needs a value", "error", directive.offset))
         return None
     if not value or not all(char in DIGITS for char in value):
-        message = f"max-age must be ASCII digits, got {value!r}"
+        shown = repr(value) if len(value) <= 40 else f"{value[:40]!r}... ({len(value)} characters)"
+        message = f"max-age must be ASCII digits, got {shown}"
         issues.append(Issue("max-age.not-digits", message, "error", offset))
         return None
     seconds, capped = delta_seconds(value)
@@ -84,14 +96,18 @@ def _first_field(value: str | Iterable[str]) -> tuple[str | None, int]:
     if isinstance(value, (bytes, bytearray, memoryview)):
         raise TypeError("pass the header as str; decode bytes with latin-1 first")
     if isinstance(value, str):
-        return value, 1
+        # A plain copy: a str subclass could change what indexing or iteration returns.
+        return str.__str__(value), 1
     if isinstance(value, Mapping) or not isinstance(value, Iterable):
         raise TypeError(f"pass a str or a list of str, got {type(value).__name__}")
-    fields = list(value)
+    if isinstance(value, Set):  # a set (dict keys and items included) has no field order
+        raise TypeError(f"field lines need an order; got a {type(value).__name__}")
+    # Two items tell whether there is more than one line; never pull a long source to its end.
+    fields = list(islice(value, 2))
     for item in fields:
         if not isinstance(item, str):
             raise TypeError(f"field lines must be str, got {type(item).__name__}")
-    return (fields[0] if fields else None), len(fields)
+    return (str.__str__(fields[0]) if fields else None), len(fields)
 
 
 def analyse(value: str | Iterable[str]) -> Analysis:
@@ -102,7 +118,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     found = scan(text)
     issues = list(found.issues)
     if count > 1:
-        message = f"{count} field lines; a user agent processes only the first (RFC 6797 8.1)"
+        message = "more than one field line; a user agent processes only the first (RFC 6797 8.1)"
         issues.append(Issue("multiple-fields", message, "warning"))
     # Broken directives count for repeats too, in the order they appear.
     order: list[tuple[int, str, Directive | None]] = [
@@ -114,9 +130,10 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     used: Directive | None = None
     max_age: int | None = None
     flags = {key: False for key in _VALUELESS}
+    preload_valued = False
     for offset, key, directive in sorted(order, key=lambda item: item[0]):
         if key in seen:
-            name = directive.name if directive else key
+            name = shorten(directive.name if directive else key)
             message = f"{name} appears more than once; every directive must be unique"
             issues.append(Issue("duplicate", message, "error", offset))
             if key not in _HARD_REPEATS:
@@ -129,13 +146,16 @@ def analyse(value: str | Iterable[str]) -> Analysis:
             if max_age is None and seconds is not None:
                 max_age, used = seconds, directive
         elif key in _VALUELESS:
-            if directive.value is not None:
+            if directive.value is None:
+                flags[key] = True
+            elif key == "preload":
+                preload_valued = True
+                issues.append(Issue("preload-value", _PRELOAD_VALUE, "warning", offset))
+            else:
                 message = f"{_VALUELESS[key]} takes no value"
                 issues.append(Issue("value-not-allowed", message, "error", offset))
-            else:
-                flags[key] = True
         else:
-            message = f"unknown directive {directive.name} is ignored"
+            message = f"unknown directive {shorten(directive.name)} is ignored"
             issues.append(Issue("unknown-directive", message, "warning", offset))
     if "max-age" not in seen:
         issues.append(Issue("max-age.missing", "max-age is required", "error"))
@@ -152,15 +172,25 @@ def analyse(value: str | Iterable[str]) -> Analysis:
         used is not None and used.spaced,
         used is not None and _beyond_uint64(used.value or ""),
         frozenset(soft),
+        next((offset for offset, key in found.broken if key == "max-age"), None),
+        preload_valued,
+        text,
+        tuple((offset, key) for offset, key, _ in order),
     )
 
 
-def lint(value: str | Iterable[str]) -> tuple[Issue, ...]:
+def lint(header: str | Iterable[str]) -> tuple[Issue, ...]:
     """List every finding about a Strict-Transport-Security value, in field order.
 
     Pass one field value, or every field line of a response (only the first is
     processed, as RFC 6797 section 8.1 requires). Findings with severity ``error`` mean a
-    user agent that follows RFC 6797 ignores the header; an empty tuple means a clean
-    header. Chromium is more lenient in places (see the README).
-    """
-    return analyse(value).issues
+    user agent that follows RFC 6797 (quoted strings by RFC 9110) ignores the header; an
+    empty tuple means a clean header. Chromium is more lenient in places (see the README).
+
+    >>> from hstsheader import lint
+    >>> [(i.severity, i.code, i.offset) for i in lint("max-age=010; includeSubDomains=1;")]
+    [('warning', 'max-age.leading-zero', 8), ('error', 'value-not-allowed', 13), ('warning', 'empty-directive', 32)]
+    >>> lint("max-age=31536000; includeSubDomains")
+    ()
+    """  # noqa: E501
+    return analyse(header).issues

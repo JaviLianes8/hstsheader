@@ -125,8 +125,8 @@ def _run(
         (
             b"HTTP/1.1 301 Moved\r\nStrict-Transport-Security: max-age=0\r\n\r\n"
             b"HTTP/2 200\r\nstrict-transport-security: " + GOOD.encode() + b"\r\n\r\n",
-            0,
-            GOOD,
+            1,
+            "max-age=0",
         ),
         (b"Date: x\r\nStrict-Transport-Security: " + GOOD.encode() + b"\r\n", 0, GOOD),
         (b"\r\n\r\nHTTP/2 200\r\nstrict-transport-security: " + GOOD.encode(), 0, GOOD),
@@ -140,8 +140,8 @@ def _run(
         (
             b"HTTP/1.1 301 Moved\r\nStrict-Transport-Security: max-age=0\r\n"
             b"HTTP/2 200\r\nstrict-transport-security: " + GOOD.encode() + b"\r\n",
-            0,
-            GOOD,
+            1,
+            "max-age=0",
         ),
         (b"HTTP/2 200\r\nStrict-Transport-Security : " + GOOD.encode() + b"\r\n", 2, None),
         (b"", 2, None),

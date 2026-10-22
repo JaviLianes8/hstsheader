@@ -115,3 +115,21 @@ def test_obs_text_from_stdin_is_kept_as_latin_1(
 ) -> None:
     code, report, _ = _run(monkeypatch, capsys, stdin=b'max-age=5; x="caf\xe9"')
     assert code == 0 and report["field"] == 'max-age=5; x="caf\u00e9"'
+
+
+def test_the_json_report_keys_are_pinned(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["max-age=1; x", "--preload"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert list(report) == [
+        "field",
+        "honoured",
+        "policy",
+        "issues",
+        "preloadable",
+        "preload_issues",
+    ]
+    assert list(report["policy"]) == ["max_age", "include_subdomains", "preload"]
+    assert list(report["issues"][0]) == ["code", "severity", "offset", "message"]
+    assert list(report["preload_issues"][0]) == ["code", "severity", "offset", "message"]
+    assert main(["preload"]) == 1
+    assert json.loads(capsys.readouterr().out)["policy"] is None

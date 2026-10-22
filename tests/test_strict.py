@@ -12,7 +12,6 @@ from hstsheader import Hsts, HstsError, parse
         ("max-age=600; preload; PRELOAD", "duplicate", 22),
         ("max-age=1; x; X", "duplicate", 14),
         ("max-age=600; includeSubDomains=1", "value-not-allowed", 13),
-        ('max-age=600; preload=""', "value-not-allowed", 13),
         ("max-age=600, preload", "syntax", 11),
         ("max age=600", "syntax", 4),
         ("max-age=", "syntax", 8),

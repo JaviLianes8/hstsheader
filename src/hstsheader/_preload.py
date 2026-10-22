@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ._checker import misreads
 from ._lint import Analysis, analyse
 from ._model import PRELOAD_MIN_MAX_AGE, Hsts, Issue
 
@@ -25,9 +26,14 @@ def _form_issues(analysis: Analysis) -> list[Issue]:
     if analysis.max_age_spaced:
         message = "hstspreload.org does not accept space around '=' in max-age"
         issues.append(Issue("preload.max-age-spaced", message, "error"))
+    if analysis.preload_valued:
+        # The site's checker only warns; a value-only preload fails as preload.missing.
+        message = "preload with a value does not count as the preload directive"
+        issues.append(Issue("preload.invalid", message, "warning"))
     if analysis.max_age_beyond_uint64:
         message = "hstspreload.org cannot read a max-age above 2^64 - 1"
         issues.append(Issue("preload.max-age-unreadable", message, "error"))
+    issues += misreads(analysis.text, dict(analysis.names))
     return issues
 
 
@@ -40,17 +46,33 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     as already valid. Then the hstspreload.org rules apply: ``includeSubDomains`` and
     ``preload`` present, and a ``max-age`` of at least :data:`PRELOAD_MIN_MAX_AGE`,
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
-    2^64 - 1). A ``max-age`` above ten years is a warning. An empty tuple or warnings only
-    means the header qualifies.
+    2^64 - 1). A ``preload`` with a value does not count as ``preload`` and is a
+    warning, as on the site, and so is a ``max-age`` above ten years written that way.
+    The site's checker cuts the header at every ';', quoted strings included, and takes
+    any name starting with ``max-age`` for it: a piece it reads as max-age,
+    includeSubDomains or preload where RFC 6797 reads no such directive is the error
+    ``preload.misread``. Like the checker, that check reads the octets as UTF-8, taking a
+    character up to U+00FF as the octet a latin-1 decode made of it. An empty tuple or
+    warnings only means the header qualifies.
+
+    >>> from hstsheader import Hsts, preload_issues
+    >>> [i.code for i in preload_issues("max-age=86400; includeSubDomains")]
+    ['preload.missing', 'preload.max-age-too-short']
+    >>> preload_issues(Hsts(63072000, include_subdomains=True, preload=True))
+    ()
     """
     if isinstance(header, Hsts):
         issues: list[Issue] = []
         max_age: int | None = header.max_age
+        unreadable = False
         subdomains, preload = header.include_subdomains, header.preload
     else:
         analysis = analyse(header)
         issues = _form_issues(analysis)
         max_age = analysis.max_age
+        unreadable = (
+            analysis.max_age_quoted or analysis.max_age_spaced or analysis.max_age_beyond_uint64
+        )
         subdomains, preload = analysis.include_subdomains, analysis.preload
     if not subdomains:
         message = "the includeSubDomains directive is required"
@@ -63,12 +85,20 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     elif max_age is not None and max_age < PRELOAD_MIN_MAX_AGE:
         message = f"max-age must be at least {PRELOAD_MIN_MAX_AGE} seconds (one year)"
         issues.append(Issue("preload.max-age-too-short", message, "error"))
-    elif max_age is not None and max_age > _TEN_YEARS:
+    elif max_age is not None and max_age > _TEN_YEARS and not unreadable:
+        # The site's checker cannot read a quoted, spaced or too long value: no warning there.
         message = "max-age is longer than ten years, an unusually long value"
         issues.append(Issue("preload.max-age-over-ten-years", message, "warning"))
     return tuple(issues)
 
 
 def is_preloadable(header: Hsts | str | Iterable[str]) -> bool:
-    """True when :func:`preload_issues` finds no error."""
+    """True when :func:`preload_issues` finds no error.
+
+    >>> from hstsheader import is_preloadable
+    >>> is_preloadable("max-age=63072000; includeSubDomains; preload")
+    True
+    >>> is_preloadable('max-age="63072000"; includeSubDomains; preload')
+    False
+    """
     return not any(issue.severity == "error" for issue in preload_issues(header))
