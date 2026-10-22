@@ -23,7 +23,7 @@ Progress:
 
 | # | Item | Result |
 | --- | --- | --- |
-| 1 | Public API reviewed for stability | PASS: ten names, signatures and parameter names kept from 0.2.0 and pinned; every behaviour change in CHANGELOG and GUIDE |
+| 1 | Public API reviewed for stability | PASS: the ten names of 0.2.0 kept and pinned, `Severity` added; two signature changes, the `lint` parameter named `header` (QA round 1) and keyword-only `Hsts` flags (QA round 7); every behaviour change in CHANGELOG and GUIDE |
 | 2 | `__all__` exact, no private imports in docs | PASS |
 | 3 | Docstrings with runnable examples, doctests | PASS: 9 doctests cover every public name; README (13 outputs) runs as a test |
 | 4 | Typed end to end | PASS: `mypy --strict src tests`, `py.typed` shipped, no `Any` in the public API |
@@ -40,8 +40,8 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
-| 19 | Five independent QA lenses | pending |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
+| 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
 
 ## Baseline on 0.2.0 (before any change)
 
@@ -80,7 +80,10 @@ tied to the README tables by test; the command line JSON keys (pinned in
 text; the ten year warning only where the site warns; the tolerant error names the broken
 `max-age`; `hstsheader --version`. After the third QA round: `preload.misread`, sets
 refused as field lines, at most two field lines taken from an iterable, a line of spaces
-in a head read as a fold, and typing overloads for `build` (see Round 3).
+in a head read as a fold, and typing overloads for `build` (see Round 3). After the
+seventh: the `Hsts` flags are keyword-only, as in `build` (positional booleans read badly
+at the call site, and 1.0.0 is the last cheap moment), and `build` and the preload checks
+check an `Hsts` again (see Round 7).
 
 ## Ground truth (item 7)
 
@@ -279,8 +282,8 @@ At 6b6075e on Elena's PC (CPython 3.14) from a fresh clone, each command on its 
 the fetched sources, the hstspreload checker, `HSTSHEADER_E2E=1` and
 `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`, `mypy --strict src`,
 `mypy --strict src tests` and `pytest` (329 passed, 0 skipped) all exit 0. After the
-QA rounds the gates were run again at f22e655, 0687e52, 7633c28 and 589a944; see Rounds
-1 to 4 below.
+QA rounds the gates were run again at f22e655, 0687e52, 7633c28, 589a944 and d025a95; see
+Rounds 1 to 4 and 7 below.
 
 ## QA lenses (item 19)
 
@@ -521,6 +524,58 @@ from `tests/oracle`: `ruff format --check .`, `ruff check .`, `mypy --strict src
 `mypy --strict src tests` and `pytest` exit 0 (561 passed, 2 skipped: the two e2e tests,
 which need `HSTSHEADER_E2E` and PyPI).
 
+### Round 7
+
+A fresh pass of the five lenses checked 14e6168. Lens a found three issues (and confirmed
+the rest of the API and docs by running every example, the doctests, `twine check`, the
+type checks and a 282-call diff against PyPI 0.2.0), lens b three, lens c one, lens d one
+and lens e four surviving mutants. Every finding is fixed in 848847b and d025a95; none is
+disputed.
+
+| Lens | Id | Severity | Finding | Fix | Contract |
+| --- | --- | --- | --- | --- | --- |
+| a | A1 | low | a `syntax` offset can be the length of the value (`max-age=`), and an unterminated quoted string points at its opening quote; the docs promised the offset of a bad character | documented in the README (a paragraph on where every finding points), the GUIDE error section and the `Issue` and `HstsError` docstrings | `test_each_code_points_where_the_readme_says` (every code, with the end and opening quote cases), `test_an_offset_may_be_the_length_of_the_value` |
+| a | A2 | low | `max-age=1;;` gave two `empty-directive` warnings at the same `;` (10, 10), a lone `;` two at 0 | one warning per extra `;`, each at its own: an empty element points at the `;` closing it, or after the last directive at the one opening it (9 and 10; a lone `;` gives one) | `test_each_extra_semicolon_gets_one_warning_at_itself` (ten shapes), a seeded property on 3,000 values (offsets distinct, each a `;`, as many as the extra semicolons); the old `[10, 10]` pin in `tests/test_review_fixes.py` now says `[9, 10]` |
+| a | A3 | low | `Hsts(600, True, False)` was legal and frozen by the stability promise, while `build` takes the flags by keyword only | `include_subdomains` and `preload` are keyword-only (`field(kw_only=True)`); CHANGELOG and GUIDE upgrade note; the e2e program checks that `Hsts(5, True)` raises `TypeError`, and the 0.2.0 script still shows it worked there | `test_hsts_flags_are_keyword_only` (also `__match_args__`), the signature pin in `tests/test_contract_api.py` |
+| b | F1 | low | a control character or DEL in a quoted string after a `;` made the skip resume at that `;`, so an error made up by the recovery came first in `lint`, strict `parse` and the command line (`a=";=\x01"; max-age=1` gave `'='` at 4, not U+0001 at 5) | the skip reads a quoted string to its closing quote whatever it holds, and gives up a quote that never closes at the first `;` after the character that broke the directive, so it never stops before the error | the three repros and three unclosed shapes, and `test_the_first_syntax_error_matches_an_independent_acceptor`: 20,000 seeded values over a hostile alphabet against an acceptor for prefixes of the RFC 6797 grammar written in the test |
+| b | F2 | low | the same cause made tolerant reading take `includeSubDomains` from inside a closed quoted string holding a control character, and `lint` report a false duplicate | fixed with F1; the GUIDE says how a quoted string is read in skipped text | `test_a_closed_quoted_string_hides_its_directives_even_when_it_holds_a_bad_character`, `test_the_command_line_does_not_read_flags_inside_a_closed_quoted_string`; the two round 2 tests that pinned the old skip now pin the new one |
+| b | F3 | low | GUIDE: "`is_preloadable` is never true for a header a user agent ignores" was false for a repeated `preload` | reworded: never true for a header with an RFC error, with one exception, the repeated directive the site and Chromium accept | doc only |
+| c | F1 | low | `build` trusted any object that passes `isinstance(x, Hsts)`: a subclass that skips `__post_init__` or an instance changed with `object.__setattr__` wrote `max-age=600\r\nSet-Cookie: ...`; the preload checks raised an unrelated `TypeError` | `build` and the `Hsts` branch of `preload_issues` rebuild a plain `Hsts` from the fields (`recheck` in `_model.py`), so every check runs again; docstrings, README, GUIDE and CHANGELOG | `test_build_checks_a_policy_again` (both repros, negative, too large, float, a flag that is not a `bool`, a valid subclass), `test_the_preload_checks_check_a_policy_again` (also an object whose `__class__` claims `Hsts`) |
+| d | F1 | low | `test_reading_a_response_head_is_linear[blank-lines]` failed about once in 25 runs: a 2 ms baseline next to a 2 ms floor | each shape grows until one run takes 20 ms (up to 1.6 M characters), and the time is the best of three to seven runs; a quadratic path still takes about 16 times as long at four times the input, against a bound of 9 | the head test passed 60 runs in a row on this PC under load; the value shapes already take 30 ms or more at 50,000 characters, so they keep their sizes |
+| e | F1-M35 | medium | an escaped quote followed by `;` in a skipped string was not pinned | | `test_an_escaped_quote_does_not_end_a_skipped_string` (both repros: `max_age` 2, `preload` false, the lint issues and the preload codes) |
+| e | F2-M58 | low | the offset of the tolerant error with two broken `max-age` directives was not pinned | GUIDE: the error names the first broken `max-age` | `test_tolerant_parse_reports_the_first_broken_max_age` (the three repros) |
+| e | F3-M47 | low | the offset of `max-age.spaced` was not pinned, and the README did not say it points at the directive | kept at the directive start and documented with A1 | the `max-age.spaced` rows of `test_each_code_points_where_the_readme_says` |
+| e | F4-M113 | low | a head line holding only the field name, without a colon, was not pinned | | `test_a_line_named_like_the_field_without_a_colon_is_ignored`, `test_the_command_line_ignores_a_field_name_without_a_colon` (subprocess) |
+
+Every test in `tests/test_qa_round7.py` and `tests/test_qa_round7_more.py` was run on
+14e6168 first: 22 failed there (the semicolon, keyword-only, first error, closed quote,
+unclosed quote and rechecked policy tests); the lens e contracts and the offset table pin
+behaviour that was already right. Each of these mutants, applied alone to a copy of the
+fixed `src`, is killed by the two new files: the four lens e mutants (M35 rewritten for
+the new skip: a backslash that no longer takes the next character), the skip resuming
+before the error, the skip ending a quote at a control character again, every trailing
+empty element pointing at the semicolon that closes it, a value of semicolons only
+warning for element 0 too, `build` and `preload_issues` without the recheck, `recheck`
+returning its argument, and positional flags.
+
+The new reading of skipped quoted strings changed two earlier pins about
+`preload.misread`, which compares the checker's pieces with the directives RFC 6797
+reads. Round 6 pinned that `note="`, five U+3000, `x;preload;yy`, U+3000 and `"` give no
+misread: the old skip gave up at the first U+3000, read that `preload` as a directive and
+so matched the checker. The quote closes, so RFC 6797 reads no `preload` there and the
+checker does: it is now a misread, pinned at its own offset (50) with the message quoting
+exactly `preload`, which still kills the octet map mutant B08 of round 6 (checked). The
+checker test that compares the misread with the checker's `preload` skipped headers with
+a control character in the quote, because the old skip read names after it; it now
+compares every one of them, and the checker agrees.
+
+Verification at d025a95, on Elena's PC (CPython 3.14.2) from a clone of the local branch
+with the fetched sources, the checker built from `tests/oracle` on this PC,
+`HSTSHEADER_E2E=1` and `HSTSHEADER_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict src tests` and `pytest` exit 0 (990 passed, 0
+skipped). A first run of 848847b on the laptop failed only the two misread pins above,
+which d025a95 updates.
+
 ## Independent review (item 16)
 
 ### Round 1
@@ -597,4 +652,4 @@ tests, which need `HSTSHEADER_E2E` and PyPI).
 
 ## Disputed findings
 
-None in QA rounds 1 to 6, nor in review rounds 1 to 3.
+None in QA rounds 1 to 7, nor in review rounds 1 to 3.
