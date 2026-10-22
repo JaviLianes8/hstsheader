@@ -38,9 +38,9 @@ Progress:
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
-| 16 | Independent reviewer | pending |
+| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), every other item PASS; the survivors are killed by new contracts in d4ef4d6; re-review pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (round 1) killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -199,6 +199,22 @@ re-running each mutant against them). M04 and M32 are equivalent, for the reason
 | M48 | _cli.py | usage exit status 1 | killed | tests/test_cli.py::test_a_head_without_the_field_is_a_usage_error |
 | M49 | _cli.py | empty argument is a usage error | survived, then killed | survived; killed after adding test_an_empty_argument_is_checked_as_a_value |
 | M50 | _cli.py | honoured means a max-age was read | killed | tests/test_cli.py::test_an_ignored_value_exits_one |
+
+The independent reviewer (item 16, round 1) ran 13 mutants of its own over `_head.py` at
+bf6f96c, each alone with the full suite, the fetched sources and the checker: ten were
+killed and three survived. All three replace a strip of spaces and tabs with Python's
+`str.strip()`, which also strips VT, FF, the four separators U+001C to U+001F, NEL, the
+no-break space and wider spaces. R01 is the same mutation in the command line's bare
+value path, added here because nothing pinned it either. Each is now killed by
+`tests/test_review_r1.py`, checked by applying it alone to a copy of d4ef4d6 and running
+that file (number of failing tests in brackets).
+
+| Id | Module | Mutation | Result | Caught by |
+| --- | --- | --- | --- | --- |
+| X05 | _head.py | a folded line is stripped with `str.strip()` | survived, then killed | tests/test_review_r1.py::test_a_folded_line_keeps_other_spaces_at_its_ends (24) |
+| Y01 | _head.py | a field value is stripped with `str.strip()` | survived, then killed | tests/test_review_r1.py::test_a_field_value_keeps_other_spaces_at_its_ends (34) |
+| Y02 | _head.py | the first non-empty line is found with `str.strip()` | survived, then killed | tests/test_review_r1.py::test_a_first_line_of_other_spaces_is_not_empty (24) |
+| R01 | _cli.py | a bare value is stripped with `str.strip()` | killed (pinned with the others) | tests/test_review_r1.py::test_a_bare_value_keeps_other_spaces_at_its_ends (9) |
 
 ## Gates (item 15)
 
@@ -448,6 +464,33 @@ from `tests/oracle`: `ruff format --check .`, `ruff check .`, `mypy --strict src
 `mypy --strict src tests` and `pytest` exit 0 (561 passed, 2 skipped: the two e2e tests,
 which need `HSTSHEADER_E2E` and PyPI).
 
-### Disputed findings
+## Independent review (item 16)
 
-None in rounds 1 to 6.
+### Round 1
+
+The reviewer checked bf6f96c against the 19 items, running each: items 1 to 15 and 19
+PASS, 17 pending the merge, and item 18 FAIL, so item 16 FAIL. The three surviving
+mutants were missing contracts, not wrong behaviour: the library already kept every
+character other than SP and HTAB in the value (RFC 9110 section 5.6.3 allows only those
+around a field value, RFC 9112 section 5.2 only those at the start of a folded line), so
+the reviewer's heads were rejected with exit status 1. The fix adds tests and a GUIDE
+note only; the library and the CHANGELOG are unchanged and nothing is disputed.
+
+| Id | Severity | Finding | Change |
+| --- | --- | --- | --- |
+| R1-18 | medium | X05, Y01 and Y02 (`str.strip()` for the folded line, the field value and the first non-empty line in `_head.py`) survived the suite, and each turns a hand-written head into a clean, preloadable header with exit status 0 | `tests/test_review_r1.py`: for VT, FF, U+001C to U+001F, NEL, the no-break space, U+2003 and U+3000, a folded line and a field value keep the character at both ends (`field_lines` and `response_fields` give the exact value, `lint` reports `syntax`), and a first line holding only it is not empty (the input is a bare value); the command line rejects all three heads with exit status 1 through `main` and by subprocess on raw latin-1 octets, the reviewer's three heads give the reviewer's fields, and a bare value keeps the character too (R01). GUIDE: only spaces and tabs are trimmed in a head, and a line of other blank characters is not empty |
+| R1-16 | low | item 16 fails while item 18 fails | follows R1-18; a new independent review is due |
+| R1-OBS1 | low | the PR body was stale (a pickle change 0.2.0 already had, "two QA rounds", missing `preload.misread`, the set and iterable changes and the standard input fixes) | PR body rewritten from the CHANGELOG 1.0.0 section |
+| R1-OBS2 | low | Actions was enabled on the GitHub repository, though it has no workflows | Actions disabled on the repository (`enabled` false) |
+| R1-OBS3 | low | the README links to GUIDE.md on `main` fail until the merge; a head fetched from an `http://` URL is checked though a browser ignores a header received over plain HTTP | links resolve once the PR is merged, which comes before publishing; GUIDE now says a browser ignores the header on plain HTTP and to pass curl the `https://` URL |
+
+The new tests pass on bf6f96c, and each mutant applied alone fails them (see the table
+under item 18). Verification at d4ef4d6, on Elena's PC (CPython 3.14.2) from a clone of
+the local branch with the fetched sources and the checker built from `tests/oracle`
+(Go 1.27.3): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (639 passed, 2 skipped: the two e2e
+tests, which need `HSTSHEADER_E2E` and PyPI).
+
+## Disputed findings
+
+None in QA rounds 1 to 6, nor in review round 1.
