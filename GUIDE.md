@@ -65,15 +65,24 @@ strict reading accepts the header with `preload` false, and lint warns `preload-
 next `;` outside a quoted string, keeps the first `max-age` that reads, and sets a flag
 when a valueless `includeSubDomains` or `preload` appears anywhere. It raises
 `HstsError` only when no `max-age` is usable: the error is the `max-age` finding, or the
-syntax error of a `max-age` directive that broke the grammar. Whenever strict reading
-succeeds, tolerant reading returns the same policy.
+syntax error of the first `max-age` directive that broke the grammar. Whenever strict
+reading succeeds, tolerant reading returns the same policy. In the skipped text a quoted
+string runs from a `"` to the next `"` that no backslash escapes, even when it holds a
+character the grammar refuses there (a control character, DEL, or any character after a
+backslash), as Chromium reads it: a `;` inside it never starts a directive. A `"` that
+never closes is given up, and the skip goes on to the first `;` after the character
+that broke the directive. So the first `syntax` finding is always at the first
+character that breaks the grammar.
 
 ## Errors
 
 `HstsError` is a `ValueError`. Its `offset` indexes the field value (the first field
-line), or is `None`. Your own code may raise one too: `HstsError(message, *,
-code="invalid", offset=None)` keeps both attributes and appends ` (at offset N)` to the
-message when an offset is given. Besides the lint codes, these codes are used:
+line), or is `None`. It points where the README says each finding points: when the value
+ends where more was needed (`max-age=`), it is the length of the value, one past its last
+character, and for an unterminated quoted string it is the opening quote. Your own code
+may raise one too: `HstsError(message, *, code="invalid", offset=None)` keeps both
+attributes and appends ` (at offset N)` to the message when an offset is given. Besides
+the lint codes, these codes are used:
 
 | Code | Raised when |
 | --- | --- |
@@ -93,7 +102,9 @@ order (a set). A flag of `build` left as `None`, its default, is not given: `Fal
 to an `int` `max_age`; next to an `Hsts` only `None` is allowed, and the overloads of
 `build` let a type checker report any other flag there. `str` and
 `int` subclasses are copied to plain values before they are checked, so they cannot
-change what is written.
+change what is written. An `Hsts` given to `build`, `preload_issues` or `is_preloadable`
+is checked again, so one that skipped its checks (a subclass that overrides
+`__post_init__`, or fields changed with `object.__setattr__`) raises as `Hsts` would.
 
 Messages quote at most 40 characters of a name or value, then its length.
 
@@ -103,9 +114,9 @@ Messages quote at most 40 characters of a name or value, then its length.
 package chromium/hstspreload) reads headers more loosely than RFC 6797 in places and more
 strictly in others, so the result combines both:
 
-- RFC errors are included, so `is_preloadable` is never true for a header a user agent
-  ignores. A repeated directive other than `max-age` and `includeSubDomains` is a warning
-  here, because the site and Chromium accept it.
+- RFC errors are included, so `is_preloadable` is never true for a header with an RFC
+  error, with one exception: a repeated directive other than `max-age` and
+  `includeSubDomains` is a warning here, because the site and Chromium accept it.
 - The site's own rules come next. A quoted `max-age`, space around its `=` or a value
   above 2^64 - 1 is an error, because the site cannot read it; the ten year warning
   appears only for a `max-age` the site can read. A `preload` with a value is the
@@ -197,6 +208,10 @@ Code may need a change in these places:
   includes a `strict` argument that is not a `bool`, which 0.2.0 read by truthiness.
 - Calling `lint(value=...)` by keyword: the parameter is `header` now, like the other
   readers. Positional calls are unchanged.
+- Creating an `Hsts` with positional flags: `include_subdomains` and `preload` are
+  keyword-only now, as in `build`, so `Hsts(600, True)` raises `TypeError`; write
+  `Hsts(600, include_subdomains=True)`. A `match` statement takes only `max_age` by
+  position.
 - Relying on `preload=<value>` being an error: it is the warning `preload-value` now,
   and the preload check reports it as the warning `preload.invalid`.
 - Piping `curl -sIL` into the command line: the first final response is checked, not

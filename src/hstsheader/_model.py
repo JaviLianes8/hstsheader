@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 # This library's cap on max-age, by analogy with RFC 9111 section 1.2.2, where a cache that
@@ -22,8 +22,9 @@ class HstsError(ValueError):
     ``code`` names the rule that failed (the same codes as :class:`Issue`, plus
     ``max-age.negative``, ``max-age.too-large``, ``build.name`` and ``build.value`` from
     :class:`Hsts` and :func:`build`) and ``offset`` is the index in the field value where
-    it failed, or ``None``. Messages quote at most 40 characters of the input. Code that
-    raises one itself calls ``HstsError(message, *, code="invalid", offset=None)``:
+    it failed, or ``None``; as for :class:`Issue`, it can be the length of the value when
+    the value ended too early. Messages quote at most 40 characters of the input. Code
+    that raises one itself calls ``HstsError(message, *, code="invalid", offset=None)``:
     ``invalid`` is only that default, never raised by this library, and an offset is
     appended to the message.
 
@@ -57,7 +58,9 @@ class Issue:
     reworded. An ``error`` means a user agent that follows RFC 6797, reading quoted
     strings by RFC 9110, ignores the whole header; a ``warning`` marks something legal
     that is likely a mistake or is refused by some checkers. ``offset`` indexes the field
-    value, or is ``None`` for a finding about the header as a whole.
+    value, or is ``None`` for a finding about the header as a whole. A ``syntax`` offset
+    equal to the length of the value means it ended where more was needed, and one for an
+    unterminated quoted string points at its opening quote.
 
     >>> from hstsheader import lint
     >>> lint("max-age=600; foo")
@@ -97,9 +100,10 @@ def check_max_age(value: object) -> int:
 class Hsts:
     """A Strict-Transport-Security policy: a max-age and two optional flags.
 
-    The fields are checked on creation: ``max_age`` is an ``int`` from 0 to
-    :data:`DELTA_SECONDS_MAX` (else :class:`HstsError`), and a field of the wrong type
-    raises ``TypeError``. Instances are immutable, hashable and compare by value.
+    The two flags are keyword-only. The fields are checked on creation: ``max_age`` is an
+    ``int`` from 0 to :data:`DELTA_SECONDS_MAX` (else :class:`HstsError`), and a field of
+    the wrong type raises ``TypeError``. Instances are immutable, hashable and compare by
+    value.
 
     >>> from hstsheader import Hsts
     >>> Hsts(31536000, include_subdomains=True)
@@ -113,10 +117,24 @@ class Hsts:
     __module__ = "hstsheader"
 
     max_age: int
-    include_subdomains: bool = False
-    preload: bool = False
+    include_subdomains: bool = field(default=False, kw_only=True)
+    preload: bool = field(default=False, kw_only=True)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "max_age", check_max_age(self.max_age))
         check_flag("include_subdomains", self.include_subdomains)
         check_flag("preload", self.preload)
+
+
+def recheck(policy: Hsts) -> Hsts:
+    """A plain :class:`Hsts` made from ``policy``'s fields, so every check runs again.
+
+    A subclass that skips ``__post_init__``, an instance changed with
+    ``object.__setattr__`` or an object that claims to be an ``Hsts`` could otherwise
+    carry any value into a header.
+    """
+    return Hsts(
+        policy.max_age,
+        include_subdomains=policy.include_subdomains,
+        preload=policy.preload,
+    )

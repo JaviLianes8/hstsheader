@@ -36,7 +36,7 @@ assert importlib.metadata.version("hstsheader") == hstsheader.__version__ == "1.
 assert importlib.resources.files("hstsheader").joinpath("py.typed").is_file()
 
 policy = parse(["max-age=63072000; includeSubDomains; preload", "max-age=0"])
-assert policy == Hsts(63072000, True, True) and is_preloadable(policy)
+assert policy == Hsts(63072000, include_subdomains=True, preload=True) and is_preloadable(policy)
 assert parse('max-age="1"; max-age=2').max_age == 1
 assert parse("max-age=" + "9" * 6000).max_age == DELTA_SECONDS_MAX == 2**31
 assert [i.code for i in lint("max-age=1; x;")] == ["unknown-directive", "empty-directive"]
@@ -59,7 +59,10 @@ for call in (
         assert isinstance(error, ValueError) and error.code
     else:
         raise AssertionError("expected HstsError")
-for bad in (lambda: Hsts("5"), lambda: build(5, preload=1), lambda: parse(b"max-age=1")):
+for bad in (
+    lambda: Hsts("5"), lambda: Hsts(5, True), lambda: build(5, preload=1),
+    lambda: parse(b"max-age=1"),
+):
     try:
         bad()
     except TypeError as error:

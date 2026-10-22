@@ -43,7 +43,11 @@ def _extensions(rng: random.Random) -> dict[str, str | None]:
 def test_random_policies_survive_a_strict_round_trip() -> None:
     rng = random.Random(6797)
     for _ in range(3000):
-        policy = Hsts(rng.randrange(DELTA_SECONDS_MAX + 1), rng.random() < 0.5, rng.random() < 0.5)
+        policy = Hsts(
+            rng.randrange(DELTA_SECONDS_MAX + 1),
+            include_subdomains=rng.random() < 0.5,
+            preload=rng.random() < 0.5,
+        )
         extensions = _extensions(rng)
         header = build(policy, extensions=extensions)
         assert parse(header, strict=True) == policy, header

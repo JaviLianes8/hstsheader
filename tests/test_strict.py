@@ -45,14 +45,17 @@ def test_strict_mode_refuses_what_a_user_agent_ignores(
     ("header", "expected"),
     [
         ("max-age=31536000", Hsts(31536000)),
-        ("  MAX-AGE = 5 ;  includesubdomains ; Preload  ", Hsts(5, True, True)),
+        (
+            "  MAX-AGE = 5 ;  includesubdomains ; Preload  ",
+            Hsts(5, include_subdomains=True, preload=True),
+        ),
         ('max-age = "60"', Hsts(60)),
         ('max-age=60; report-uri="https://example.com/a;b"', Hsts(60)),
         ("max-age=60; ext=token; flag", Hsts(60)),
         (";; max-age=60 ;;", Hsts(60)),
         ("max-age=\t60\t;\tpreload", Hsts(60, preload=True)),
         ('max-age=60; x="caf\u00e9"', Hsts(60)),
-        ("max-age=0; includeSubDomains", Hsts(0, True)),
+        ("max-age=0; includeSubDomains", Hsts(0, include_subdomains=True)),
     ],
 )
 def test_strict_mode_accepts_every_conforming_header(header: str, expected: Hsts) -> None:

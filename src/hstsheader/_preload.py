@@ -6,7 +6,7 @@ from collections.abc import Iterable
 
 from ._checker import misreads
 from ._lint import Analysis, analyse
-from ._model import PRELOAD_MIN_MAX_AGE, Hsts, Issue
+from ._model import PRELOAD_MIN_MAX_AGE, Hsts, Issue, recheck
 
 # hstspreload.org warns above ten years of 365 days.
 _TEN_YEARS = 10 * 365 * 86400
@@ -42,8 +42,9 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
 
     A header value is first checked against RFC 6797: its errors are included, except a
     repeated directive other than max-age and includeSubDomains, which Chromium and the
-    site's checker tolerate and which comes back as a warning. An :class:`Hsts` is taken
-    as already valid. Then the hstspreload.org rules apply: ``includeSubDomains`` and
+    site's checker tolerate and which comes back as a warning. An :class:`Hsts` is valid
+    by construction; it is checked again, and one that skipped its checks raises as
+    :class:`Hsts` would. Then the hstspreload.org rules apply: ``includeSubDomains`` and
     ``preload`` present, and a ``max-age`` of at least :data:`PRELOAD_MIN_MAX_AGE`,
     written the way the site's checker reads it (unquoted, no space around ``=``, at most
     2^64 - 1). A ``preload`` with a value does not count as ``preload`` and is a
@@ -62,6 +63,7 @@ def preload_issues(header: Hsts | str | Iterable[str]) -> tuple[Issue, ...]:
     ()
     """
     if isinstance(header, Hsts):
+        header = recheck(header)
         issues: list[Issue] = []
         max_age: int | None = header.max_age
         unreadable = False

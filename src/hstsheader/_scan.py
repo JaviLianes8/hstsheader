@@ -10,8 +10,9 @@ Whitespace may appear between any two words and separators (RFC 2616 section 2.2
 RFC 2616 LWS and RFC 9112 section 5.2 allow. A quoted-pair follows RFC 9110 section 5.6.4
 (HTAB, SP, VCHAR or obs-text after the backslash), stricter on purpose than RFC 2616, which
 let any US-ASCII character follow. A directive that breaks the grammar is reported and
-skipped up to the next semicolon that is not inside a quoted string, so the rest can still
-be read.
+skipped up to the next semicolon that is not inside a quoted string (one that runs to its
+closing quote, even past a character the grammar refuses there), so the rest can still be
+read.
 """
 
 from __future__ import annotations
@@ -149,22 +150,36 @@ def scan(text: str) -> Scan:
     if not text.strip(OWS):
         return result
     skipper = Skipper(text)
+    semicolons: list[int] = []  # the ';' that ends each element, in order
+    empty: list[int] = []  # the elements without a directive, by index
+    last = -1  # the last element with a directive
     i = 0
     while True:
         start = i = _skip_ows(text, i)
         if i == len(text) or text[i] == ";":
-            # Point at a semicolon: the one closing this empty element, or the last one.
-            where = i if i < len(text) else text.rindex(";")
-            message = "empty directive (an extra ';')"
-            result.issues.append(Issue("empty-directive", message, "warning", where))
+            empty.append(len(semicolons))
         else:
+            last = len(semicolons)
             try:
                 directive, i = _directive(text, i)
                 result.directives.append(directive)
             except _Broken as broken:
                 result.issues.append(Issue("syntax", broken.message, "error", broken.offset))
                 result.broken.append((start, ascii_lower(broken.name)))
-                i = skipper.resync(start)
+                i = skipper.resync(start, broken.offset)
         if i >= len(text):
-            return result
+            break
+        semicolons.append(i)
         i += 1
+    for element in empty:
+        # One warning per extra ';', each at its own: an empty element points at the ';'
+        # closing it, or after the last directive at the one opening it.
+        if element < last:
+            where = semicolons[element]
+        elif element > 0:
+            where = semicolons[element - 1]
+        else:
+            continue  # no directive at all: n semicolons make n + 1 empty elements
+        message = "empty directive (an extra ';')"
+        result.issues.append(Issue("empty-directive", message, "warning", where))
+    return result

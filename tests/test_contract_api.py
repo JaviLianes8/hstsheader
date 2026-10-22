@@ -30,7 +30,7 @@ SIGNATURES = {
         ("preload", KW, None),
         ("extensions", KW, None),
     ],
-    "Hsts": [("max_age", POS, EMPTY), ("include_subdomains", POS, False), ("preload", POS, False)],
+    "Hsts": [("max_age", POS, EMPTY), ("include_subdomains", KW, False), ("preload", KW, False)],
     "Issue": [
         ("code", POS, EMPTY),
         ("message", POS, EMPTY),
@@ -63,7 +63,7 @@ def test_hsts_and_issue_fields_are_pinned() -> None:
 
 
 def test_values_pickle_copy_hash_and_compare() -> None:
-    policy = Hsts(5, True, False)
+    policy = Hsts(5, include_subdomains=True)
     issue = Issue("syntax", "m", "error", 3)
     for value in (policy, issue):
         assert pickle.loads(pickle.dumps(value)) == value

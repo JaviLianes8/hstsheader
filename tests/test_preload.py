@@ -14,7 +14,7 @@ def _codes(header: Hsts | str | list[str]) -> list[str]:
 def test_the_minimal_eligible_header_passes() -> None:
     assert preload_issues(GOOD) == ()
     assert is_preloadable(GOOD)
-    assert is_preloadable(Hsts(PRELOAD_MIN_MAX_AGE, True, True))
+    assert is_preloadable(Hsts(PRELOAD_MIN_MAX_AGE, include_subdomains=True, preload=True))
 
 
 def test_each_missing_flag_is_reported() -> None:
@@ -24,21 +24,23 @@ def test_each_missing_flag_is_reported() -> None:
 
 
 def test_one_second_short_of_a_year_fails() -> None:
-    assert _codes(Hsts(PRELOAD_MIN_MAX_AGE - 1, True, True)) == ["preload.max-age-too-short"]
-    assert not is_preloadable(Hsts(PRELOAD_MIN_MAX_AGE - 1, True, True))
+    assert _codes(Hsts(PRELOAD_MIN_MAX_AGE - 1, include_subdomains=True, preload=True)) == [
+        "preload.max-age-too-short"
+    ]
+    assert not is_preloadable(Hsts(PRELOAD_MIN_MAX_AGE - 1, include_subdomains=True, preload=True))
 
 
 def test_zero_points_to_the_removal_form() -> None:
-    (issue,) = preload_issues(Hsts(0, True, True))
+    (issue,) = preload_issues(Hsts(0, include_subdomains=True, preload=True))
     assert issue.code == "preload.max-age-zero" and "removal" in issue.message
 
 
 def test_more_than_ten_years_is_only_a_warning() -> None:
     ten_years = 10 * 365 * 86400
-    assert preload_issues(Hsts(ten_years, True, True)) == ()
-    (issue,) = preload_issues(Hsts(ten_years + 1, True, True))
+    assert preload_issues(Hsts(ten_years, include_subdomains=True, preload=True)) == ()
+    (issue,) = preload_issues(Hsts(ten_years + 1, include_subdomains=True, preload=True))
     assert (issue.code, issue.severity) == ("preload.max-age-over-ten-years", "warning")
-    assert is_preloadable(Hsts(ten_years + 1, True, True))
+    assert is_preloadable(Hsts(ten_years + 1, include_subdomains=True, preload=True))
 
 
 def test_a_quoted_max_age_is_refused_by_the_preload_checker() -> None:

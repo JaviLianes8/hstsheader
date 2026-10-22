@@ -51,7 +51,7 @@ def _oracle(text: str) -> Hsts | None:
         return None
     subdomains = "includesubdomains" in seen
     preload = "preload" in seen and seen["preload"] is None
-    return Hsts(min(int(age), 2**31), subdomains, preload)
+    return Hsts(min(int(age), 2**31), include_subdomains=subdomains, preload=preload)
 
 
 def _strict(text: str | list[str]) -> Hsts | None:

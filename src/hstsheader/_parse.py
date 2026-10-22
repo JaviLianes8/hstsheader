@@ -43,7 +43,11 @@ def parse(header: str | Iterable[str], *, strict: bool = False) -> Hsts:
         raise HstsError(first.message, code=first.code, offset=first.offset)
     if analysis.max_age is None:
         raise _no_max_age(analysis)
-    return Hsts(analysis.max_age, analysis.include_subdomains, analysis.preload)
+    return Hsts(
+        analysis.max_age,
+        include_subdomains=analysis.include_subdomains,
+        preload=analysis.preload,
+    )
 
 
 def _no_max_age(analysis: Analysis) -> HstsError:

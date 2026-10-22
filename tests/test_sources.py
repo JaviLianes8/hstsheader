@@ -31,7 +31,13 @@ def test_every_rfc_6797_example_is_honoured(rfc6797: str) -> None:
     examples = _section(rfc6797, "\n6.2.  Examples", "\n7.  Server Processing Model")
     values = re.findall(r"^ +Strict-Transport-Security: (.+)$", examples, flags=re.MULTILINE)
     assert len(values) == 5
-    expected = [Hsts(31536000), Hsts(15768000, True), Hsts(31536000), Hsts(0), Hsts(0, True)]
+    expected = [
+        Hsts(31536000),
+        Hsts(15768000, include_subdomains=True),
+        Hsts(31536000),
+        Hsts(0),
+        Hsts(0, include_subdomains=True),
+    ]
     assert [parse(value, strict=True) for value in values] == expected
 
 

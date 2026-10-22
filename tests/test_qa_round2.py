@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from hstsheader import is_preloadable, lint, preload_issues
+from hstsheader import is_preloadable, lint, parse, preload_issues
 from hstsheader._head import field_lines
 
 TAIL = "HTTP/1.1 200 OK\r\nStrict-Transport-Security: max-age=2\r\n"
@@ -75,16 +75,22 @@ def test_two_broken_quoted_directives_in_a_row_are_both_reported() -> None:
     assert _found('a=b "x"; "y;z"; max-age=9') == [("syntax", 4), ("syntax", 9)]
 
 
-@pytest.mark.parametrize("pair", [chr(127), chr(256)])
-def test_an_invalid_quoted_pair_ends_a_skipped_string(pair: str) -> None:
+# Round 7 (lens b, F1 and F2): a skipped string runs to its closing quote whatever it
+# holds; until then an invalid quoted-pair or a control character ended it.
+@pytest.mark.parametrize("pair", [chr(127), chr(256), chr(1)])
+def test_an_invalid_quoted_pair_does_not_end_a_skipped_string(pair: str) -> None:
     value = 'a=b "x' + "\\" + pair + ';"; max-age=13'
-    assert _found(value) == [("syntax", 4), ("syntax", 9)]
+    assert _found(value) == [("syntax", 4)]
+    assert parse(value).max_age == 13
 
 
-@pytest.mark.parametrize("char", [chr(1), chr(31)])
-def test_a_control_character_ends_a_skipped_string(char: str) -> None:
+@pytest.mark.parametrize("char", [chr(1), chr(31), chr(127), chr(256)])
+def test_a_control_character_does_not_end_a_skipped_string(char: str) -> None:
     value = 'a=b "x' + char + ';"; max-age=13'
-    assert _found(value) == [("syntax", 4), ("syntax", 8)]
+    assert _found(value) == [("syntax", 4)]
+    assert parse(value).max_age == 13
+    # A ';' inside the skipped string never starts a directive.
+    assert parse('a=b "x' + char + ';max-age=1;"; max-age=13').max_age == 13
 
 
 @pytest.mark.parametrize("char", ["\x00", "\r", "\n"])

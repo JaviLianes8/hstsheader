@@ -85,11 +85,20 @@ strings read by the RFC 9110 rules (the
 [guide](https://github.com/JaviLianes8/hstsheader/blob/main/GUIDE.md#reading-a-value)
 says where the older RFC 2616 rules differ). A `warning` marks something legal that is
 likely a mistake or that some checkers refuse.
-Offsets index the field value; an empty directive points at its semicolon.
+
+Offsets index the field value. A finding about a directive points at its name, and so do
+`max-age.no-value` and `max-age.spaced`; the other findings about the value of `max-age`
+point at that value (at its opening quote when it is quoted). A `syntax` error points at
+the first character that breaks the grammar, with two cases to know: when the value ends
+where more was needed (`max-age=`), the offset is the length of the value, one past its
+last character, and an unterminated quoted string points at its opening quote. An
+empty directive points at an extra semicolon, one warning for each, a
+`control-character` at the character and `obs-fold` at the line break. A finding about
+the header as a whole has the offset `None`.
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
-| `syntax` | error | outside the directive grammar (offset of the first bad character) |
+| `syntax` | error | outside the directive grammar (offset of the first bad character, see above) |
 | `control-character` | error | CR, LF or NUL in the value |
 | `max-age.missing` | error | no `max-age` directive |
 | `max-age.no-value` | error | `max-age` without `=` |
@@ -158,7 +167,8 @@ print(build(Hsts(600, preload=True), extensions={"report-uri": "https://example.
 
 Flags must be `bool`, or `None` (the default) for not given, and `max_age` an `int` (else
 `TypeError`), from 0 to 2147483648 (else `HstsError`). An `Hsts` carries its own flags:
-passing one next to it raises `TypeError`, and a type checker reports that call too.
+passing one next to it raises `TypeError`, and a type checker reports that call too. Its
+fields are checked again, so a subclass that skips the checks cannot write a bad value.
 Extension names must be HTTP tokens and cannot repeat or shadow the
 three known directives; values that are not tokens are quoted, and control or non-ASCII
 characters raise `HstsError`, so a value cannot smuggle a second header line. For every
@@ -208,7 +218,7 @@ stores at most one year of `max-age` whatever the header says.
 | `preload_issues(header)` | findings against the hstspreload.org rules (value or `Hsts`) |
 | `is_preloadable(header)` | `True` when `preload_issues` has no error |
 | `build(max_age, *, include_subdomains, preload, extensions)` | write a header value |
-| `Hsts` | frozen dataclass: `max_age`, `include_subdomains`, `preload`, checked on creation |
+| `Hsts` | frozen dataclass: `max_age`, then `include_subdomains` and `preload` by keyword only, checked on creation |
 | `Issue` | frozen dataclass: `code`, `message`, `severity`, `offset` |
 | `Severity` | the type of `Issue.severity`: `Literal["error", "warning"]` |
 | `HstsError` | a `ValueError` with `code` and `offset`; wrong argument types raise `TypeError` |

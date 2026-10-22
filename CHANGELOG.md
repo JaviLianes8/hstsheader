@@ -27,6 +27,20 @@ change.
   it by truthiness, so `strict="false"` meant strict.
 - The parameter of `lint` is named `header`, like the other readers (it was `value`).
   Positional calls are unchanged.
+- `Hsts` takes `include_subdomains` and `preload` by keyword only, as `build` does:
+  `Hsts(600, True)` raises `TypeError`; write `Hsts(600, include_subdomains=True)`. A
+  `match` statement takes only `max_age` by position.
+- `lint` gives one `empty-directive` warning for each extra `;`, each at its own
+  semicolon: `max-age=1;;` gave two warnings at offset 10, now at 9 and 10, and a lone
+  `;` gave two warnings at 0, now one.
+- When tolerant reading skips a broken directive, a quoted string in it runs to its
+  closing quote even when it holds a character the grammar refuses there (a control
+  character, DEL, or any character after a backslash), as Chromium reads it. A `;`
+  before that quote no longer starts a directive: the Python string
+  `'max-age=600; a="\x01;includeSubDomains;"'` no longer sets `include_subdomains`, and
+  `lint` no longer reports a duplicate or a syntax error for text inside such a string.
+  A quote that never closes is still given up, at the first `;` after the character
+  that broke the directive.
 - A `preload` directive with a value (`preload=yes`) is no longer an RFC 6797 error.
   RFC 6797 does not define `preload`, so it is an unknown directive there: strict
   `parse` accepts the header with `preload` false, and `lint` gives the new warning
@@ -78,6 +92,16 @@ change.
 
 ### Fixed
 
+- The first `syntax` finding, and so the error of strict `parse` and the first issue on
+  the command line, could be an error that skipping a broken directive made up, ahead of
+  the real first bad character: the Python string `'a=";=\x01"; max-age=1'` reported
+  `'='` at offset 4 instead of U+0001 at offset 5. The first `syntax` finding is now
+  always at the first character that breaks the grammar.
+- `build`, `preload_issues` and `is_preloadable` check an `Hsts` again. A subclass that
+  skips the checks, an instance changed with `object.__setattr__` or an object that only
+  claims to be an `Hsts` could put any `max_age`, CR LF included, into the built header,
+  or make the preload checks fail with an unrelated `TypeError`. Such a policy now raises
+  as `Hsts` would.
 - Reading a value with many folded lines, and a response head with many leading blank
   lines or folded lines, took time quadratic in the input; it is linear now.
 - Skipping broken directives took time quadratic in the input when a backslash came
@@ -101,6 +125,9 @@ change.
   flag left as `None` means not given, as documented now.
 - The `HstsError` constructor and its default code `invalid`, which this library never
   raises, are documented.
+- The README says where each finding points: a `syntax` offset equal to the length of
+  the value means it ended where more was needed, and an unterminated quoted string
+  points at its opening quote.
 - Every public name has a docstring with an example that runs as a test.
 
 ## [0.2.0] - 2026-10-19

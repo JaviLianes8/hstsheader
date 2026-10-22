@@ -61,7 +61,7 @@ def test_a_max_age_the_preload_checker_cannot_read_is_refused() -> None:
 
 def test_a_folded_line_is_whitespace() -> None:
     header = "max-age=5;\r\n includeSubDomains;\n\tpreload"
-    assert parse(header, strict=True) == Hsts(5, True, True)
+    assert parse(header, strict=True) == Hsts(5, include_subdomains=True, preload=True)
     assert [(i.code, i.offset) for i in lint(header)] == [("obs-fold", 10), ("obs-fold", 31)]
 
 
@@ -83,7 +83,7 @@ def test_resync_skips_quoted_semicolons() -> None:
 
 def test_an_empty_directive_points_at_its_semicolon() -> None:
     assert [i.offset for i in lint("max-age=5;")] == [9]
-    assert [i.offset for i in lint("max-age=5;;")] == [10, 10]
+    assert [i.offset for i in lint("max-age=5;;")] == [9, 10]
     assert [i.offset for i in lint(";max-age=5")] == [0]
 
 

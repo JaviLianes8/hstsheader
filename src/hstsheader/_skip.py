@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from array import array
 
-from ._chars import is_pair_char, is_qdtext
-
 _UNKNOWN = -2
 _UNCLOSED = -1
 
@@ -13,11 +11,14 @@ _UNCLOSED = -1
 class Skipper:
     """Find the next ';' outside a quoted string, remembering every quoted scan.
 
-    A skip that meets a '"' reads a quoted string from there. Without memory, a field such
-    as ``a=\\";`` repeated makes every skip read to the end of the field and fail, which
-    is quadratic. A quoted-string reader is a small automaton: from a given index, where
-    it is between characters, the outcome (the closing index, or no closing quote) is
-    always the same, so each index is read at most once per field value.
+    A skip that meets a '"' reads a quoted string from there up to the next '"' that no
+    backslash escapes, whatever it holds: a character the grammar refuses there does not
+    end it, so a ';' before the closing quote never starts a directive (Chromium reads such
+    a string the same way). Only a quote that never closes is given up. Without memory, a
+    field such as ``a=\\";`` repeated makes every skip read to the end of the field and
+    fail, which is quadratic. A quoted-string reader is a small automaton: from a given
+    index, where it is between characters, the outcome (the closing index, or no closing
+    quote) is always the same, so each index is read at most once per field value.
     """
 
     def __init__(self, text: str) -> None:
@@ -44,19 +45,18 @@ class Skipper:
             if char == '"':
                 result = i + 1
                 break
-            if char == "\\" and i + 1 < len(text) and is_pair_char(text[i + 1]):
-                i += 2
-                continue
-            if char == "\\" or not is_qdtext(char):
-                result = _UNCLOSED
-                break
-            i += 1
+            # A backslash takes the next character with it, as in a quoted-pair.
+            i += 2 if char == "\\" and i + 1 < len(text) else 1
         for index in visited:
             ends[index] = result
         return None if result == _UNCLOSED else result
 
-    def resync(self, i: int) -> int:
-        """Index of the next ';' outside a quoted string, or the end of the text."""
+    def resync(self, i: int, error: int) -> int:
+        """Index of the next ';' outside a quoted string, or the end of the text.
+
+        ``error`` is where the directive broke; the skip never stops before it, so nothing
+        is reported ahead of the first bad character.
+        """
         text = self.text
         while i < len(text) and text[i] != ";":
             if text[i] == '"':
@@ -64,7 +64,7 @@ class Skipper:
                 if end is None:
                     # A quote that never closes would swallow everything after it; give up
                     # on it and resume at the next plain semicolon instead.
-                    nxt = text.find(";", i)
+                    nxt = text.find(";", max(i, error))
                     return len(text) if nxt < 0 else nxt
                 i = end
                 continue

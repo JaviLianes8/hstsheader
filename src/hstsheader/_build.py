@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import overload
 
 from ._chars import ascii_lower, is_sendable, is_token, quote, shorten
-from ._model import Hsts, HstsError
+from ._model import Hsts, HstsError, recheck
 
 _KNOWN = frozenset({"max-age", "includesubdomains", "preload"})
 
@@ -79,8 +79,9 @@ def build(
     tokens are written as quoted strings, and control or non-ASCII characters are
     refused, so the result is always one well-formed field value. Directives come out
     in a fixed order: max-age, includeSubDomains, preload, then the extensions.
-    Arguments of the wrong type raise ``TypeError``; values a header cannot carry raise
-    :class:`HstsError`.
+    An :class:`Hsts` is checked again, so one that skipped its checks (a subclass, or
+    fields changed by force) raises as :class:`Hsts` would. Arguments of the wrong type
+    raise ``TypeError``; values a header cannot carry raise :class:`HstsError`.
 
     >>> from hstsheader import Hsts, build
     >>> build(63072000, include_subdomains=True, preload=True)
@@ -95,12 +96,12 @@ def build(
     if isinstance(max_age, Hsts):
         if include_subdomains is not None or preload is not None:
             raise TypeError("pass the flags on the Hsts object, not as arguments")
-        policy = max_age
+        policy = recheck(max_age)
     else:
         policy = Hsts(
             max_age,
-            False if include_subdomains is None else include_subdomains,
-            False if preload is None else preload,
+            include_subdomains=False if include_subdomains is None else include_subdomains,
+            preload=False if preload is None else preload,
         )
     parts = [f"max-age={policy.max_age}"]
     if policy.include_subdomains:
