@@ -39,8 +39,9 @@ change.
   before that quote no longer starts a directive: the Python string
   `'max-age=600; a="\x01;includeSubDomains;"'` no longer sets `include_subdomains`, and
   `lint` no longer reports a duplicate or a syntax error for text inside such a string.
-  A quote that never closes is still given up, at the first `;` after the character
-  that broke the directive.
+  A `preload` or `includeSubDomains` that the hstspreload.org checker reads inside it is
+  now `preload.misread`, as for a valid quoted string. A quote that never closes is
+  still given up, at the first `;` after the character that broke the directive.
 - A `preload` directive with a value (`preload=yes`) is no longer an RFC 6797 error.
   RFC 6797 does not define `preload`, so it is an unknown directive there: strict
   `parse` accepts the header with `preload` false, and `lint` gives the new warning

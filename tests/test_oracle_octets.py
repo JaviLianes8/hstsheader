@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 from conftest import NO_PRELOAD, SWEEPS, sweep_headers
 
-from hstsheader import is_preloadable, lint, preload_issues
+from hstsheader import is_preloadable, preload_issues
 
 ORACLE = os.environ.get("HSTSHEADER_ORACLE", "")
 pytestmark = pytest.mark.skipif(not ORACLE, reason="set HSTSHEADER_ORACLE to the built checker")
@@ -54,8 +54,8 @@ CASES = [
     (f'{GOOD}; note="{WIDE}x;\xa0max-age=1;y"', False, True, True, True),
     # Runs above U+00FF on both sides of the piece.
     (f'{NO_PRELOAD}; note="{WIDE}x;\xc2\xa0preload;{WIDE}y"', True, True, True, True),
-    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;yy{WIDE}"', False, True, True, True),
-    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;{WIDE}y"', False, True, True, True),
+    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;yy{WIDE}"', True, True, True, True),
+    (f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;{WIDE}y"', True, True, True, True),
     # U+3164, the hangul filler, renders blank but is not a space to Go.
     (f'{NO_PRELOAD}; note="x;\xe3\x85\xa4preload;y"', False, False, True, False),
     (f'{GOOD}; note="x;\xe3\x85\xa4max-age=1;y"', False, True, True, True),
@@ -88,9 +88,9 @@ def test_a_misread_is_reported_exactly_where_the_checker_sees_preload() -> None:
     spaces = [_wire(code) for code in CODES] + LONE
     headers = [f'{NO_PRELOAD}; note="x;{space}preload;y"' for space in spaces]
     headers += [f'{NO_PRELOAD}; note="x;preload{space};y"' for space in spaces]
+    # A control character inside the quote no longer ends it for the skip (round 7), so
+    # RFC 6797 reads no preload in any of these, valid or not, and the checker decides.
     for header, verdict in zip(headers, _run(headers), strict=True):
-        if any(issue.severity == "error" for issue in lint(header)):
-            continue  # a control character breaks the quote, and RFC 6797 reads names after it
         assert _misread(header) == verdict["preload"], header
 
 

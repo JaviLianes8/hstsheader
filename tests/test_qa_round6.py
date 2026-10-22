@@ -62,12 +62,17 @@ def test_a_misread_between_two_wide_runs_is_quoted_whole() -> None:
     assert found[0][1].endswith("reads 'preload' as preload")
 
 
-def test_a_piece_between_two_wide_runs_is_not_misread() -> None:
+def test_a_piece_between_two_wide_runs_is_misread_at_its_own_offset() -> None:
+    # Until round 7 the skip gave up on these quotes at the first wide character and read
+    # this preload as a directive; the quote closes, so RFC 6797 reads no preload here,
+    # and the checker does: a misread, quoted whole at its own character offset.
     for header in (
         f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;yy{WIDE}"',
         f'{NO_PRELOAD}; note="{WIDE * 5}x;preload;{WIDE}y"',
     ):
-        assert misreads(header) == []
+        found = misreads(header)
+        assert [offset for offset, _ in found] == [header.index("preload")] == [50]
+        assert found[0][1].endswith("reads 'preload' as preload")
 
 
 def test_preload_issues_reports_the_misreads_the_sweep_counts() -> None:
