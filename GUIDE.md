@@ -148,7 +148,9 @@ spaces and tabs counts as empty there; one holding any other blank character, a 
 feed or a no-break space for one, does not. Without it, standard
 input is read as latin-1 the same way. A head ends at an empty line; a line of only
 spaces or tabs is obsolete line folding (RFC 9112 `obs-fold`), a continuation of the
-field line before it, not the end of the head. Without standard input at all (started
+field line before it, not the end of the head. A line that starts with any other
+blank character, or holds only such characters, is neither a fold nor the end of the head:
+it is a field line of its own, and not a Strict-Transport-Security one. Without standard input at all (started
 with it closed), or with one that cannot be read (a file opened for writing only), and
 no `VALUE`, it is a usage error. In a head, folded lines are joined,
 only spaces and tabs are trimmed from a field value and from both ends of a folded line
