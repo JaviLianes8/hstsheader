@@ -38,9 +38,9 @@ Progress:
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
-| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), every other item PASS; the survivors are killed by new contracts in d4ef4d6; re-review pending |
+| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e; re-review pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (round 1) killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (rounds 1 and 2) killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -215,6 +215,29 @@ that file (number of failing tests in brackets).
 | Y01 | _head.py | a field value is stripped with `str.strip()` | survived, then killed | tests/test_review_r1.py::test_a_field_value_keeps_other_spaces_at_its_ends (34) |
 | Y02 | _head.py | the first non-empty line is found with `str.strip()` | survived, then killed | tests/test_review_r1.py::test_a_first_line_of_other_spaces_is_not_empty (24) |
 | R01 | _cli.py | a bare value is stripped with `str.strip()` | killed (pinned with the others) | tests/test_review_r1.py::test_a_bare_value_keeps_other_spaces_at_its_ends (9) |
+
+The independent reviewer (round 2) found one more survivor at c3ad265, Z06: it makes the
+scanner's check for a value with nothing but whitespace use `str.strip()` instead of a
+strip of spaces and tabs, so a value made only of other blank characters (VT, the
+no-break space, U+3000 and the like) gives an empty scan and loses its `syntax` error,
+while the exit status stays 1. Z07 to Z13 sweep every other
+place where the scanner and the character classes test for whitespace. Each mutant was
+applied alone to a copy of ae2695e on Elena's PC (CPython 3.14, fetched sources, the
+checker built from `tests/oracle`), and the suite was run twice: once with `-x` without
+`tests/test_review_r2.py` (the state before this round), then that file alone (number of
+failing tests in brackets). Z06, Z11 and Z13 survived the earlier suite; all eight now fail
+the new file.
+
+| Id | Module | Mutation | Result | Caught by |
+| --- | --- | --- | --- | --- |
+| Z06 | _scan.py | the whitespace-only check uses `str.strip()` | survived, then killed | tests/test_review_r2.py::test_a_value_of_one_blank_character_is_a_syntax_error (158) |
+| Z07 | _scan.py | whitespace is skipped with `str.isspace()` | killed | tests/test_fuzz.py::test_strict_reading_matches_the_grammar[11]; also tests/test_review_r2.py (183) |
+| Z08 | _chars.py | `OWS` also holds VT and FF | killed | tests/test_fuzz.py::test_strict_reading_matches_the_grammar[11]; also tests/test_review_r2.py (20) |
+| Z09 | _chars.py | `OWS` also holds U+3000 | killed | tests/test_oracle_octets.py::test_the_reported_cases_read_as_the_checker_reads_them; also tests/test_review_r2.py (9) |
+| Z10 | _chars.py | qdtext accepts any `str.isspace()` character | killed | tests/test_fuzz.py::test_strict_reading_matches_the_grammar[11]; also tests/test_review_r2.py (23) |
+| Z11 | _chars.py | a quoted-pair accepts any `str.isspace()` character | survived, then killed | tests/test_review_r2.py::test_a_blank_character_in_a_quoted_string_follows_the_grammar (23) |
+| Z12 | _chars.py | the builder sends any `str.isspace()` character | killed | src/hstsheader/_build.py::hstsheader._build.build; also tests/test_review_r2.py (25) |
+| Z13 | _scan.py | the whitespace-only check also strips the no-break space | survived, then killed | tests/test_review_r2.py::test_a_value_of_one_blank_character_is_a_syntax_error (7) |
 
 ## Gates (item 15)
 
@@ -491,6 +514,30 @@ the local branch with the fetched sources and the checker built from `tests/orac
 `mypy --strict src tests` and `pytest` exit 0 (639 passed, 2 skipped: the two e2e
 tests, which need `HSTSHEADER_E2E` and PyPI).
 
+### Round 2
+
+The reviewer checked c3ad265 against the 19 items, running each: items 1 to 15 and 19
+PASS, 17 pending the merge, and item 18 FAIL, so item 16 FAIL. It confirmed the round 1
+fixes (X05, Y01, Y02 and R01 killed, its own Z01 to Z05 killed, the PR body, Actions and
+the GUIDE note). One mutant survived, Z06. As in round 1 it was a missing contract, not
+wrong behaviour: the library already reported a value of other blank characters as a
+`syntax` error at the right offset, in `lint`, `preload_issues`, `parse` and the command
+line. The fix adds tests only; the library, the GUIDE and the CHANGELOG are unchanged and
+nothing is disputed.
+
+| Id | Severity | Finding | Change |
+| --- | --- | --- | --- |
+| R2-18 | medium | Z06 (`text.strip()` for the scanner's whitespace-only check in `_scan.py`) survived the suite; it drops the `syntax` error of a value made only of blank characters other than SP and HTAB from `lint`, `preload_issues`, the tolerant parse and the command line JSON | `tests/test_review_r2.py` computes every code point `str.isspace()` accepts besides SP, HTAB, CR and LF (25 on CPython 3.14) and pins, for each one: `lint` of the character alone (and of three of it) is exactly `syntax` at 0 and `max-age.missing`; between spaces and tabs the `syntax` offset is the character's; before the name, before and after `=`, after the value and between semicolons it is a `syntax` error at its own offset, never skipped as whitespace; in a quoted string and after a backslash it is `syntax` unless it is obs-text (U+0085, U+00A0); the builder refuses it; strict `parse` raises `syntax` at its offset; `preload_issues` gives `syntax`, `max-age.missing` and the two preload errors; the command line JSON lists `syntax` at 0 through `main`, by subprocess as an argument, and by subprocess on standard input as latin-1 octets. The other whitespace sites (`_skip_ows`, `OWS`, qdtext, quoted-pair, the builder) were swept with Z07 to Z13, see the table under item 18 |
+| R2-16 | low | item 16 fails while item 18 fails | follows R2-18; a new independent review is due |
+| R1-recheck | low | round 1 findings re-checked and fixed; observation: the comment in `tests/test_review_r1.py` claimed to cover every character `str.strip()` removes, but the wide ones were only sampled | comment reworded: it covers the characters up to U+00FF plus two wide samples, and points at the full sweep in `tests/test_review_r2.py` |
+
+Each mutant applied alone fails the new file, and the new file passes on c3ad265 and
+ae2695e. Verification at ae2695e, on Elena's PC (CPython 3.14) from a clone of the
+local branch with the fetched sources and the checker built from `tests/oracle`
+(Go 1.27.3): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (873 passed, 2 skipped: the two e2e
+tests, which need `HSTSHEADER_E2E` and PyPI).
+
 ## Disputed findings
 
-None in QA rounds 1 to 6, nor in review round 1.
+None in QA rounds 1 to 6, nor in review rounds 1 and 2.
