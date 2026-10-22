@@ -143,13 +143,17 @@ hstsheader --version
 ```
 
 With `VALUE`, that text is checked: a response head when its first non-empty line is a
-status line or a `name: value` field line, else a bare field value. Without it, standard
+status line or a `name: value` field line, else a bare field value. A line of only
+spaces and tabs counts as empty there; one holding any other blank character, a form
+feed or a no-break space for one, does not. Without it, standard
 input is read as latin-1 the same way. A head ends at an empty line; a line of only
 spaces or tabs is obsolete line folding (RFC 9112 `obs-fold`), a continuation of the
 field line before it, not the end of the head. Without standard input at all (started
 with it closed), or with one that cannot be read (a file opened for writing only), and
 no `VALUE`, it is a usage error. In a head, folded lines are joined,
-and every Strict-Transport-Security line of the first final response is passed on, the
+only spaces and tabs are trimmed from a field value and from both ends of a folded line
+(RFC 9110 section 5.6.3), so any other blank character stays in the value and is
+reported, and every Strict-Transport-Security line of the first final response is passed on, the
 first one counting. Interim responses (1xx) and a proxy's `200 Connection established` are not
 final. With several responses (`curl -sIL` follows redirects) the first is the answer
 for the URL that was asked for: RFC 6797 section 8.1 has a browser apply the header of
@@ -159,6 +163,11 @@ When the first final response has no field but a later one has it, the base doma
 sends no header: the report has `field` and `policy` null, `honoured` (and
 `preloadable`) false, and the single issue `field.missing`, an error with a null
 offset, in `issues` (and `preload_issues`).
+
+A browser ignores the header of a response received over plain HTTP (RFC 6797 section
+8.1), but a head carries no trace of how it was received, so the command line checks
+whatever it is given. Pass curl the `https://` URL: with `curl -sIL http://example.com`
+the first final response is the plain HTTP redirect, and that is the one checked.
 
 The JSON object has these keys, in this order:
 
