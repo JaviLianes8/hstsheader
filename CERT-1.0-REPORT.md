@@ -38,9 +38,9 @@ Progress:
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
-| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e; re-review pending |
+| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (rounds 1 and 2) killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 6 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
 | 19 | Five independent QA lenses | pending |
 
 ## Baseline on 0.2.0 (before any change)
@@ -238,6 +238,40 @@ the new file.
 | Z11 | _chars.py | a quoted-pair accepts any `str.isspace()` character | survived, then killed | tests/test_review_r2.py::test_a_blank_character_in_a_quoted_string_follows_the_grammar (23) |
 | Z12 | _chars.py | the builder sends any `str.isspace()` character | killed | src/hstsheader/_build.py::hstsheader._build.build; also tests/test_review_r2.py (25) |
 | Z13 | _scan.py | the whitespace-only check also strips the no-break space | survived, then killed | tests/test_review_r2.py::test_a_value_of_one_blank_character_is_a_syntax_error (7) |
+
+The independent reviewer (round 3) found two survivors at 637e654, both in `_head.py`
+and both on the positive side of the SP and HTAB rule (rounds 1 and 2 pinned only the
+other blank characters). R3-M08 trims a folded line with `lstrip`, so the spaces and tabs
+at the end of a folded line in the middle of a value stay in it: the JSON `field` and the
+issue offsets change. R3-M16 finds the first non-empty line with `if line`, so a first
+line of only spaces or tabs makes the whole input a bare value: the verdict and the exit
+status flip. S01 to S14 sweep every other place where `_head.py` tests for a blank line or
+trims spaces and tabs: the folded-line trim, the test that starts a fold, the end of the
+head, the field value trim and the first-line test. Each mutant was applied alone to a
+copy of a0c7085 on Elena's PC (CPython 3.14.2, fetched sources, the checker built from
+`tests/oracle`), and the suite was run twice: once with `-x` without
+`tests/test_review_r3.py` (the state before this round), then that file alone (number of
+failing tests in brackets). Eight survived the earlier suite; all sixteen now fail the
+new file.
+
+| Id | Module | Mutation | Result | Caught by |
+| --- | --- | --- | --- | --- |
+| R3-M08 | _head.py | a folded line is trimmed with `lstrip(" \t")` | survived, then killed | tests/test_review_r3.py::test_a_folded_line_loses_spaces_and_tabs_at_both_ends (7) |
+| R3-M16 | _head.py | the first non-empty line is found with `if line` | survived, then killed | tests/test_review_r3.py::test_a_first_line_of_spaces_and_tabs_is_empty (32) |
+| S01 | _head.py | a folded line is trimmed with `rstrip(" \t")` | killed | tests/test_qa_round3.py::test_a_line_of_spaces_in_a_head_continues_the_field_line; also tests/test_review_r3.py (10) |
+| S02 | _head.py | a folded line is not trimmed | killed | tests/test_qa_round3.py::test_a_line_of_spaces_in_a_head_continues_the_field_line; also tests/test_review_r3.py (10) |
+| S03 | _head.py | a folded line is trimmed of spaces only | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them (tab fold); also tests/test_review_r3.py (9) |
+| S04 | _head.py | only SP starts a fold | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them (tab fold); also tests/test_review_r3.py (5) |
+| S05 | _head.py | any `str.isspace()` character starts a fold | survived, then killed | tests/test_review_r3.py::test_a_line_led_by_another_blank_character_is_not_a_fold (5) |
+| S06 | _head.py | VT and FF also start a fold | survived, then killed | tests/test_review_r3.py::test_a_line_led_by_another_blank_character_is_not_a_fold (2) |
+| S07 | _head.py | a fold right after the status line is joined to nothing (`and out` dropped, so `IndexError`) | survived, then killed | tests/test_review_r3.py::test_a_fold_right_after_the_status_line_has_nothing_to_join (1) |
+| S08 | _head.py | a line of spaces and tabs ends the head | killed | tests/test_qa_round3.py::test_a_line_of_spaces_in_a_head_continues_the_field_line; also tests/test_review_r3.py (3) |
+| S09 | _head.py | a line of any `str.isspace()` characters ends the head | killed | tests/test_qa_round3.py::test_a_line_of_spaces_in_a_head_continues_the_field_line; also tests/test_review_r3.py (8) |
+| S10 | _head.py | a field value is trimmed with `lstrip(" \t")` | survived, then killed | tests/test_review_r3.py::test_a_field_value_loses_spaces_and_tabs_at_both_ends (4) |
+| S11 | _head.py | a field value is trimmed with `rstrip(" \t")` | killed | tests/test_cli.py::test_a_response_head_on_stdin; also tests/test_review_r3.py (57) |
+| S12 | _head.py | only a first line of spaces counts as empty (tabs do not) | survived, then killed | tests/test_review_r3.py::test_a_first_line_of_spaces_and_tabs_is_empty (19) |
+| S13 | _head.py | only a first line of tabs counts as empty (spaces do not) | survived, then killed | tests/test_review_r3.py::test_a_first_line_of_spaces_and_tabs_is_empty (23) |
+| S14 | _head.py | the first line counts unless it is all blank (`not line.isspace()`, so an empty one counts) | killed | tests/test_review_fixes.py::test_response_heads_are_read_like_curl_prints_them (empty first lines); also tests/test_review_r3.py (10) |
 
 ## Gates (item 15)
 
@@ -538,6 +572,29 @@ local branch with the fetched sources and the checker built from `tests/oracle`
 `mypy --strict src tests` and `pytest` exit 0 (873 passed, 2 skipped: the two e2e
 tests, which need `HSTSHEADER_E2E` and PyPI).
 
+### Round 3
+
+The reviewer checked 637e654 against the 19 items, running each: items 1 to 15 and 19
+PASS, 17 pending the merge, and item 18 FAIL, so item 16 FAIL. It confirmed the round 2
+fix (Z06 killed, and its variant Z13b) and ran 16 mutants of its own: 14 were killed,
+M08 and M16 of `_head.py` survived. As in rounds 1 and 2 they were missing contracts,
+not wrong behaviour: the library already found the head after a first line of spaces and
+tabs and trimmed them from both ends of a folded line, as the GUIDE says. The fix adds
+tests and one GUIDE sentence; the library and the CHANGELOG are unchanged and nothing is
+disputed.
+
+| Id | Severity | Finding | Change |
+| --- | --- | --- | --- |
+| R3-18 | medium | M08 (`lstrip` for a folded line) and M16 (`if line` for the first non-empty line) in `_head.py` survived the suite: with M16 a head after a first line of spaces or tabs is read as a bare value and the exit status flips to 1; with M08 the trailing spaces and tabs of a folded line in the middle of a value stay in the JSON `field` and shift the issue offsets | `tests/test_review_r3.py`: for first lines of SP and HTAB only (one or two of them, mixed, and followed by an empty or another blank line), before a status line and before pasted fields, `field_lines` and `response_fields` find `max-age=31536000`, and the command line gives exit status 0 with that `field` through `main`, by subprocess as an argument and on standard input as latin-1 octets; the reviewer's three heads give the reviewer's results. Folded lines with trailing, leading and trailing, and tab-led spaces and tabs give `max-age=31536000; includeSubDomains ; foo` with `unknown-directive` at 38 in `field_lines`, `response_fields` and the command line JSON (the reviewer's head included). A field value loses SP and HTAB at both ends, with the offsets checked. The sibling sites were swept with S01 to S14 (see the table under item 18), which added these contracts: a line of only SP and HTAB is a fold, not the end of the head; a line of another blank character neither ends the head nor is a fold; a line led by another blank character is not joined to the value; a fold right after the status line has nothing to join. GUIDE: a line that starts with, or holds only, another blank character is neither a fold nor the end of the head |
+| R3-16 | low | item 16 fails while item 18 fails | follows R3-18; a new independent review is due |
+
+The new file passes on 637e654 (the library is unchanged), and each mutant applied alone
+fails it. Verification at a0c7085, on Elena's PC (CPython 3.14.2) from a clone of the
+local branch with the fetched sources and the checker built from `tests/oracle`
+(Go 1.27.3): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (930 passed, 2 skipped: the two e2e
+tests, which need `HSTSHEADER_E2E` and PyPI).
+
 ## Disputed findings
 
-None in QA rounds 1 to 6, nor in review rounds 1 and 2.
+None in QA rounds 1 to 6, nor in review rounds 1 to 3.
