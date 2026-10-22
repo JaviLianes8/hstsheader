@@ -162,3 +162,16 @@ def test_a_fold_right_after_the_status_line_has_nothing_to_join() -> None:
     head = f"HTTP/1.1 200 OK\r\n folded\r\n{STS}: {AGE}\r\n\r\n"
     assert field_lines(head) == [AGE]
     assert response_fields(head) == [[AGE]]
+
+
+@pytest.mark.parametrize("edge", [" ", "\t", " \t ", "\t \t"])
+def test_a_field_value_loses_spaces_and_tabs_at_both_ends(
+    edge: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for lead, trail in ((edge, ""), ("", edge), (edge, edge)):
+        head = f"HTTP/1.1 200 OK\r\n{STS}:{lead}{AGE}; foo{trail}\r\n\r\n"
+        assert field_lines(head) == [f"{AGE}; foo"]
+        assert response_fields(head) == [[f"{AGE}; foo"]]
+        assert _main(head, capsys) == (0, f"{AGE}; foo", [("unknown-directive", 18)])
+    raw = f"{STS}: {AGE}{edge}\r\n\r\n".encode("latin-1")
+    assert _sub(stdin=raw) == (0, AGE, [])
