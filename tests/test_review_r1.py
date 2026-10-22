@@ -25,8 +25,9 @@ from hstsheader._head import field_lines, response_fields
 
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 GOOD = "max-age=31536000; includeSubDomains; preload"
-# Every character Python's str.strip() removes besides SP, HTAB, CR and LF (CR and LF end
-# a line here). The ones up to U+00FF reach the command line as single latin-1 octets.
+# The characters up to U+00FF that Python's str.strip() removes besides SP, HTAB, CR and
+# LF (CR and LF end a line here); they reach the command line as single latin-1 octets.
+# WIDE_SPACE samples two of the wider ones; tests/test_review_r2.py sweeps them all.
 PY_SPACE = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1f", "\x85", "\xa0"]
 WIDE_SPACE = [chr(0x2003), chr(0x3000)]
 
