@@ -130,6 +130,9 @@ change.
   the value means it ended where more was needed, and an unterminated quoted string
   points at its opening quote.
 - Every public name has a docstring with an example that runs as a test.
+- Reference downloads and tests accept `HSTSHEADER_UPSTREAM` for an external storage
+  directory. The optional wheel tests can be collected on embedded Python builds
+  without the `venv` module when those tests are disabled.
 
 ## [0.2.0] - 2026-10-19
 

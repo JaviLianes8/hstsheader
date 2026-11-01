@@ -11,7 +11,6 @@ import os
 import subprocess
 import sys
 import tarfile
-import venv
 import zipfile
 from pathlib import Path
 
@@ -126,6 +125,8 @@ def wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 def _venv(where: Path) -> Path:
+    import venv
+
     venv.create(where, with_pip=True)
     return where / ("Scripts" if sys.platform == "win32" else "bin")
 

@@ -74,6 +74,31 @@ rechecks and independent review are pending. No runtime code changed in this pre
   entries (only package and distribution metadata, including `py.typed` and LICENSE),
   sdist 67 entries (source, tests, oracle wrapper, docs, scripts and hash manifest).
   No downloaded reference files, executables, environments or scratch files ship.
+- The 15 oracle tests subsequently passed in 75.07 s, including all code-point sweeps.
+  Together with the first source run, all 990 tests passed. The installed wheel on
+  CPython 3.14.6 also passed its entire suite: 988 passed, with only the two opt-in
+  build/upgrade tests skipped (already run separately).
+- Interpreter discovery checked executable paths rather than stale launcher entries:
+  CPython 3.10.11, 3.10.22, 3.11.9, 3.11.18, 3.12.10, 3.12.16, 3.13.2, 3.13.18,
+  3.14.6, 3.14.10 and 3.14.10 free-threaded are available. Embedded builds omit
+  `venv`, so that optional test dependency is now imported only inside the wheel-test
+  helper, allowing the rest of the suite to collect normally on those builds.
+
+### Installed-wheel interpreter matrix
+
+The sdist's tests run with its `src` directory moved out of the tree, against a fresh
+wheel installation. All fetched references and the Go checker are present, doctests
+come from the installed package, and every test has a 300 s timeout. The two opt-in
+wheel-build/upgrade tests are skipped here because they run separately. The embedded
+distributions run from private copies with dependencies installed alongside them.
+
+| CPython | Passed | Skipped | Seconds |
+| --- | --- | --- | --- |
+| 3.10.11 (embedded) | 988 | 2 | 618.48 |
+| 3.10.22 | 988 | 2 | 623.09 |
+| 3.14.6 | 988 | 2 | 517.62 |
+
+The remaining discovered interpreters are still being checked.
 
 ### Local mutation confirmation
 
