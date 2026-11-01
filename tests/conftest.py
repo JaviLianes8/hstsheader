@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -9,7 +10,8 @@ import pytest
 
 from hstsheader._checker import misreads
 
-UPSTREAM = Path(__file__).resolve().parent / "upstream"
+MANIFEST = Path(__file__).resolve().parent / "upstream" / "MANIFEST.json"
+UPSTREAM = Path(os.environ.get("HSTSHEADER_UPSTREAM", str(MANIFEST.parent)))
 
 
 def read_upstream(name: str) -> str:
@@ -21,7 +23,7 @@ def read_upstream(name: str) -> str:
     path = UPSTREAM / name
     if not path.is_file():
         pytest.skip(f"{name} is not fetched; run python scripts/fetch_upstream.py")
-    entry = json.loads((UPSTREAM / "MANIFEST.json").read_text(encoding="utf-8"))[name]
+    entry = json.loads(MANIFEST.read_text(encoding="utf-8"))[name]
     body = path.read_bytes()
     assert hashlib.sha256(body).hexdigest() == entry["sha256"], f"{name} differs from MANIFEST"
     return body.decode("utf-8")

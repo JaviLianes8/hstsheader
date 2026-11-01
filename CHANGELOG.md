@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-21
+## [1.0.0] - 2026-11-01
 
 The public API is now stable: the eleven names in `hstsheader.__all__`, their parameter
 names and defaults, the `Issue` codes listed in the README, the `HstsError` attributes

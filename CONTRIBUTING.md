@@ -14,6 +14,8 @@ Some tests check the library against the RFCs, hstspreload.org and Chromium's pa
 Those files are not in the repository; fetch them once with
 `python scripts/fetch_upstream.py` (each is checked against `tests/upstream/MANIFEST.json`).
 Without them the tests that need them are skipped.
+Set `HSTSHEADER_UPSTREAM` to store and read downloaded files in another directory;
+the tracked manifest remains the authority for their sizes and hashes.
 
 The hstspreload.org checker itself runs in `tests/test_oracle_hstspreload.py` and
 `tests/test_oracle_octets.py`; each header reaches it as its octets in hex, so octets that

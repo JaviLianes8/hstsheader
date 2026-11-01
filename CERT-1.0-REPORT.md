@@ -34,7 +34,7 @@ Progress:
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28; a traceback on unreadable standard input (lens c, round 4) fixed in 103a25a |
 | 10 | Supported Pythons | PASS (last run at 7633c28): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
-| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-21 |
+| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-11-01 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
@@ -42,6 +42,61 @@ Progress:
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
 | 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
 | 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
+
+## Preparation resumed on 2026-11-01
+
+The branch resumes at 766105c with every earlier commit retained. There were no local
+changes or saved local lens reports. The round 7 findings remain fixed; final lens
+rechecks and independent review are pending. No runtime code changed in this preparation.
+
+- PyPI JSON fetched live from https://pypi.org/pypi/hstsheader/json on 2026-11-01:
+  latest release still 0.2.0. The upgrade test continues to install that actual release.
+- All nine files in `tests/upstream/MANIFEST.json` fetched again on 2026-11-01, with
+  every size and SHA-256 matching. This includes the specification text from
+  https://www.rfc-editor.org/rfc/rfc6797.txt and the checker's official test vectors at
+  https://raw.githubusercontent.com/chromium/hstspreload/d624d7c87b33307629f776b26c79448ca193a38f/header_test.go.
+- Go 1.27.3 downloaded from https://go.dev/dl/go1.27.3.windows-amd64.zip and verified
+  against the live go.dev release manifest: SHA-256
+  `f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff`.
+  `tests/oracle` built locally against its pinned upstream revision.
+- `HSTSHEADER_UPSTREAM` now lets the fetch script and tests use an external reference
+  directory while retaining the tracked hash manifest. Downloads, environments, build
+  products and test temporary directories stay outside the checkout.
+- The release date is 2026-11-01. The existing README badge exactly matches the
+  reference badge, including its target URL.
+- Checkpoint gates: `ruff format --check .`, `ruff check .`, `mypy --strict src`
+  and `mypy --strict src tests` each exit 0. CPython 3.14.6 source suite with both
+  installed-wheel tests enabled: 975 passed, 15 oracle tests skipped while the checker
+  was being built, 530.32 s. Wheel installation, console script, module invocation
+  and PyPI 0.2.0 upgrade passed. The oracle tests and installed-wheel interpreter matrix
+  are being checked separately.
+- `twine check --strict` passed for both artifacts. Contents inspected: wheel 19
+  entries (only package and distribution metadata, including `py.typed` and LICENSE),
+  sdist 67 entries (source, tests, oracle wrapper, docs, scripts and hash manifest).
+  No downloaded reference files, executables, environments or scratch files ship.
+
+### Local mutation confirmation
+
+Twelve deliberate bugs applied one at a time to a separate copy of the current tree,
+with each original restored afterward. Each selected contract module ran with a 300 s
+per-test limit. All twelve failed for the intended assertion (pytest exit 1); none
+survived and no additional runtime change was needed. This supplements, rather than
+replaces, the earlier mutation rounds below.
+
+| Id | Mutation | Contract that failed |
+| --- | --- | --- |
+| N01 | Reject max-age zero | `test_build::test_build_allows_zero_max_age` |
+| N02 | Reject the exact sender ceiling | `test_model::test_hsts_accepts_the_whole_range` |
+| N03 | Accept bool as max-age | `test_build::test_build_rejects_bool_max_age` |
+| N04 | Skip preload flag validation | `test_build::test_build_refuses_flags_that_are_not_bool[preload]` |
+| N05 | Trust an altered policy in build | `test_qa_round7_more::test_build_checks_a_policy_again` |
+| N06 | Allow a reserved extension name | `test_build::test_extension_names_cannot_shadow_the_known_directives[max-age]` |
+| N07 | Allow duplicate extension names | `test_build::test_extension_names_must_be_unique_ignoring_case` |
+| N08 | Report the last strict error | `test_strict::test_strict_mode_refuses_what_a_user_agent_ignores[max age=600-syntax-4]` |
+| N09 | Reject the exact preload minimum | `test_preload::test_the_minimal_eligible_header_passes` |
+| N10 | Invert the preload verdict | `test_preload::test_the_minimal_eligible_header_passes` |
+| N11 | Keep trailing field whitespace | `test_review_r3::test_a_field_value_loses_spaces_and_tabs_at_both_ends` |
+| N12 | Quote 41 input characters | `test_cert_regressions::test_messages_quote_at_most_forty_characters` |
 
 ## Baseline on 0.2.0 (before any change)
 
