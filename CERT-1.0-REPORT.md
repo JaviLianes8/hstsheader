@@ -40,7 +40,7 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
+| 18 | Contracts bite (mutations) | PASS: 12 local mutants of the current runtime, all killed by contract assertions; historical round: 50 mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
 | 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
 
 ## Preparation resumed on 2026-11-02
@@ -125,10 +125,16 @@ distributions run from private copies with dependencies installed alongside them
 | 3.10.22 | 988 | 2 | 623.09 |
 | 3.11.9 (embedded) | 988 | 2 | 547.75 |
 | 3.11.18 | 988 | 2 | 543.13 |
+| 3.12.10 (embedded) | 988 | 2 | 526.56 |
 | 3.12.16 | 988 | 2 | 551.91 |
+| 3.13.2 (embedded) | 988 | 2 | 671.26 |
+| 3.13.18 | 988 | 2 | 483.90 |
 | 3.14.6 | 988 | 2 | 517.62 |
+| 3.14.10 free-threaded | 988 | 2 | 670.46 |
 
-The remaining discovered interpreters are still being checked.
+The regular CPython 3.14.10 build is the last interpreter still being checked.
+The free-threaded build keeps the GIL disabled after importing pytest and the installed
+package, confirmed with `sys._is_gil_enabled()`.
 
 ### Local mutation confirmation
 
