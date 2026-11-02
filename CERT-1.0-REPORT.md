@@ -34,7 +34,7 @@ Progress:
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28; a traceback on unreadable standard input (lens c, round 4) fixed in 103a25a |
 | 10 | Supported Pythons | PASS (last run at 7633c28): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
-| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-11-01 |
+| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-11-02 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
@@ -42,6 +42,33 @@ Progress:
 | 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
 | 18 | Contracts bite (mutations) | PASS: 50 author mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
 | 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
+
+## Preparation resumed on 2026-11-02
+
+The branch resumes at e9c1de9 with every earlier commit retained. The two uncommitted
+CPython 3.11 results agree with their saved logs and are retained below. No runtime code
+or tests changed in this preparation. The release date is now 2026-11-02.
+
+- PyPI metadata fetched from https://pypi.org/pypi/hstsheader/json on 2026-11-02 still
+  identifies 0.2.0 as the latest published release.
+- All nine reference files were fetched again on 2026-11-02 with
+  `scripts/fetch_upstream.py`; every size and SHA-256 matches
+  `tests/upstream/MANIFEST.json`. This includes the RFC text and the pinned official
+  checker vectors. The local reference directory remains outside the checkout.
+- The twelve local mutations below already have complete failure logs against the
+  unchanged runtime code. Those completed results are retained.
+- Final source gates each exit 0: `ruff format --check .`, `ruff check .`,
+  `mypy --strict src`, `mypy --strict src tests`, and `pytest` on CPython 3.14.6:
+  990 passed, none skipped, in 510.67 s. The fetched sources, Go checker, wheel e2e,
+  console script, module invocation and actual PyPI 0.2.0 upgrade are all enabled.
+- `twine check --strict` passes for both rebuilt artifacts. The wheel's 19 entries
+  are byte-for-byte identical to those of the previous wheel, so the completed matrix
+  results still apply. The sdist's 67 entries include the dated CHANGELOG, tests and
+  reference manifest; no downloaded references, scratch files or report are included.
+  Every Python test used by the installed-wheel matrix matches the current checkout.
+- Installed-wheel checks on the remaining interpreters are in progress. Items 16,
+  17 (merge and publication), and 19 remain pending. No latest-round lens verdict or
+  independent review is PASS.
 
 ## Preparation resumed on 2026-11-01
 
@@ -96,6 +123,9 @@ distributions run from private copies with dependencies installed alongside them
 | --- | --- | --- | --- |
 | 3.10.11 (embedded) | 988 | 2 | 618.48 |
 | 3.10.22 | 988 | 2 | 623.09 |
+| 3.11.9 (embedded) | 988 | 2 | 547.75 |
+| 3.11.18 | 988 | 2 | 543.13 |
+| 3.12.16 | 988 | 2 | 551.91 |
 | 3.14.6 | 988 | 2 | 517.62 |
 
 The remaining discovered interpreters are still being checked.
