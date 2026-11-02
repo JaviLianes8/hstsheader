@@ -28,7 +28,7 @@ Progress:
 | 2 | `__all__` exact, no private imports in docs | PASS |
 | 3 | Docstrings with runnable examples, doctests | PASS: 9 doctests cover every public name; README (13 outputs) runs as a test |
 | 4 | Typed end to end | PASS: `mypy --strict src tests`, `py.typed` shipped, no `Any` in the public API |
-| 5 | Typed, documented, bounded errors | PASS: `HstsError` (a `ValueError`) with code and offset, `TypeError` for wrong types, messages quote at most 40 characters |
+| 5 | Typed, documented, bounded errors | PASS: `HstsError` (a `ValueError`) with code and offset, `TypeError` for wrong types; library diagnostics omit arbitrary input names, values and received class names |
 | 6 | Contract tests of every public name | PASS |
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
@@ -41,8 +41,8 @@ Progress:
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
 | 17 | PR and trace guard | [PR #3](https://github.com/JaviLianes8/hstsheader/pull/3) from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
-| 18 | Contracts bite (mutations) | PASS: 12 local mutants of the current runtime, all killed by contract assertions; historical round: 50 mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
-| 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
+| 18 | Contracts bite (mutations) | PASS: all five resumed round 1 survivors killed by new contracts; prior local round: 12 mutants, all killed by contract assertions; historical round: 50 mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
+| 19 | Five independent QA lenses | Resumed round 1 at 81ec1c3: all ten reported findings fixed below, none disputed; independent rechecks pending |
 
 ## Preparation resumed on 2026-11-02
 
@@ -409,6 +409,53 @@ Rounds 1 to 4 and 7 below.
 
 ## QA lenses (item 19)
 
+### Resumed round 1, 2026-11-02
+
+Reviewed head: `81ec1c3df8f701d5d7de6cac724c6d7d1ce8081e`.
+Fix commit: `14345fef800c871b840a8d00afccde03bf28790e`
+(`fix diagnostic privacy and complete value contracts`). All ten findings are addressed;
+the independent lenses must still verify them before certification is complete.
+
+| Lens | Finding | Change | Verification |
+| --- | --- | --- | --- |
+| a, c | A-001, C1 | Omit malformed max-age values, arbitrary directive and extension names, and preload checker excerpts from library diagnostics; retain codes, severities, offsets and validation explanations | `test_contract_diagnostics.py`: short and long synthetic markers, strict and tolerant parsing, lint, preload checks and builder failures |
+| a | A-002 | README, GUIDE, build docstring and rejection message explicitly allow HTAB in quoted extension values and reject other controls and non-ASCII characters | Runnable build docstring example retains a literal tab |
+| a | A-003 | Issue docstring distinguishes RFC acceptance in lint from preload eligibility, including the duplicate warning exception | Existing preload contracts and `test_duplicate_severity_distinguishes_lint_and_preload_findings` |
+| c | C2 | Omit received class names from wrong-type errors, including field containers, field items, max_age, flags and extension names | `test_wrong_type_messages_omit_class_names`, `test_wrong_field_containers_omit_class_names`; names up to 100,024 characters |
+| e | E-M07 | Pin absent, zero and positive offsets in exception messages, attributes and arguments through shallow copy, deep copy and pickle | `test_error_offset_message_survives_copy_and_pickle` |
+| e | E-M08 | Pin Issue inequality and separate set entries when only the offset differs | `test_issue_offsets_distinguish_values`, `test_findings_at_distinct_positions_remain_distinct` |
+| e | E-M09 | Pin Issue inequality and separate set entries when only severity differs | `test_issue_severity_distinguishes_values`, duplicate lint/preload contract |
+| e | E-M10 | Pin Hsts inequality and separate set entries when only include_subdomains differs | `test_policy_flags_distinguish_values[include_subdomains]` |
+| e | E-M11 | Pin Hsts inequality and separate set entries when only preload differs | `test_policy_flags_distinguish_values[preload]` |
+
+The diagnostic contracts were added before the runtime edits: 54 failed on the reviewed
+code, while all 11 value-identity contracts passed. The latter guard existing behavior;
+no equality or offset-formatting implementation change was needed. Each reported
+mutation was then applied alone in a scratch copy and caught by the new contracts:
+
+| Mutation | Failures | Result |
+| --- | --- | --- |
+| E-M07: omit the zero-offset message suffix | 1 | KILLED, pytest exit 1 |
+| E-M08: exclude Issue.offset from comparison | 4 | KILLED, pytest exit 1 |
+| E-M09: exclude Issue.severity from comparison | 2 | KILLED, pytest exit 1 |
+| E-M10: exclude Hsts.include_subdomains from comparison | 1 | KILLED, pytest exit 1 |
+| E-M11: exclude Hsts.preload from comparison | 1 | KILLED, pytest exit 1 |
+
+Public signatures, exception classes, finding codes, severities and offsets are
+unchanged. The CHANGELOG records the diagnostic behavior changes. Directly constructed
+HstsError and Issue objects still preserve caller-supplied messages.
+
+Verification: `ruff format --check .`, `ruff check .`, `mypy --strict src` and
+`mypy --strict src tests` each exit 0. The adversarial reviewer's original eight
+diagnostic regression cases also pass against the fixed source. The complete suite
+finished on 2026-11-03: **1055 passed, none skipped**, exit 0, in 1027.79 seconds.
+Tests use CPython 3.14.6, pytest-timeout at 300 seconds, sys capture and a scratch-local
+basetemp. The fetched references, Go oracle, installed-wheel e2e and PyPI 0.2.0 upgrade
+are enabled. Device-dependent CLI cases use regular scratch files in place of the null
+device, through a local test harness; no repository runtime change is made for that
+substitution. Logs and mutation copies are under
+the external certification scratch directory `fix-lenses-r1-20261102/`.
+
 ### Round 1
 
 Five independent lenses checked c8a317c. Lens d found only F1 below, lens a four findings,
@@ -774,4 +821,5 @@ tests, which need `HSTSHEADER_E2E` and PyPI).
 
 ## Disputed findings
 
-None in QA rounds 1 to 7, nor in review rounds 1 to 3.
+None in the resumed QA round 1 of 2026-11-02, historical QA rounds 1 to 7, or review
+rounds 1 to 3.
