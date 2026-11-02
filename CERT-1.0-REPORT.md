@@ -5,6 +5,7 @@ The 1.0.0 certification bar (19 items) applied to hstsheader. PyPI has 0.2.0 (up
 compared with the tree), so every change listed here is a change against the PyPI release.
 
 Progress:
+- [x] Preparation items 1 to 15 and 18 completed on 2026-11-02
 - [x] Branch `release/1.0.0` created from `main` (d7e5426, same code as PyPI 0.2.0)
 - [x] Baseline gates on 0.2.0
 - [x] API review and 1.0.0 changes (item 1)
@@ -32,14 +33,14 @@ Progress:
 | 7 | Real ground truth | PASS: 9 pinned sources, the hstspreload.org checker built from its Go source and run live, headers of 22 real sites fetched with curl |
 | 8 | Real e2e from the wheel | PASS: wheel installed in a fresh venv and driven from an empty folder, console script and `python -m`, PyPI 0.2.0 upgraded in place |
 | 9 | Seeded fuzz, no crash, hang or blowup | PASS: three quadratic paths found and fixed, a fourth found by QA lens c and fixed in f22e655; an iterable of field lines read to its end (lens c, round 3) fixed in 7633c28; a traceback on unreadable standard input (lens c, round 4) fixed in 103a25a |
-| 10 | Supported Pythons | PASS (last run at 7633c28): CPython 3.10.19, 3.11.5, 3.12.12, 3.13.2, 3.14.2, 3.14.2t; 3.8.20 and 3.9.25 refused by `requires-python` |
+| 10 | Supported Pythons | PASS: all eleven available configurations, CPython 3.10.11, 3.10.22, 3.11.9, 3.11.18, 3.12.10, 3.12.16, 3.13.2, 3.13.18, 3.14.6, 3.14.10 and 3.14.10 free-threaded; installed-wheel matrix below |
 | 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, badge, verified comparison |
 | 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-11-02 |
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
 | 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
-| 17 | PR and trace guard | PR from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
+| 17 | PR and trace guard | [PR #3](https://github.com/JaviLianes8/hstsheader/pull/3) from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
 | 18 | Contracts bite (mutations) | PASS: 12 local mutants of the current runtime, all killed by contract assertions; historical round: 50 mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
 | 19 | Five independent QA lenses | Round 7 (a fresh pass of all five at 14e6168): every finding fixed in 848847b and d025a95, none disputed; re-check by the same lenses pending |
 
@@ -66,9 +67,13 @@ or tests changed in this preparation. The release date is now 2026-11-02.
   results still apply. The sdist's 67 entries include the dated CHANGELOG, tests and
   reference manifest; no downloaded references, scratch files or report are included.
   Every Python test used by the installed-wheel matrix matches the current checkout.
-- Installed-wheel checks on the remaining interpreters are in progress. Items 16,
-  17 (merge and publication), and 19 remain pending. No latest-round lens verdict or
-  independent review is PASS.
+- The installed-wheel matrix is complete: all eleven available interpreter
+  configurations pass 988 tests each, with only the two opt-in build/upgrade tests
+  skipped because they passed separately. Every supported minor version, 3.10 through
+  3.14, ran. Stale launcher entries pointing to absent executables are not additional
+  installed runtimes.
+- Preparation items 1 to 15 and 18 are complete. Items 16, 17 (merge and publication),
+  and 19 remain pending. No latest-round lens verdict or independent review is PASS.
 
 ## Preparation resumed on 2026-11-01
 
@@ -89,8 +94,8 @@ rechecks and independent review are pending. No runtime code changed in this pre
 - `HSTSHEADER_UPSTREAM` now lets the fetch script and tests use an external reference
   directory while retaining the tracked hash manifest. Downloads, environments, build
   products and test temporary directories stay outside the checkout.
-- The release date is 2026-11-01. The existing README badge exactly matches the
-  reference badge, including its target URL.
+- At that checkpoint the release date was 2026-11-01. The existing README badge
+  exactly matches the reference badge, including its target URL.
 - Checkpoint gates: `ruff format --check .`, `ruff check .`, `mypy --strict src`
   and `mypy --strict src tests` each exit 0. CPython 3.14.6 source suite with both
   installed-wheel tests enabled: 975 passed, 15 oracle tests skipped while the checker
@@ -130,9 +135,10 @@ distributions run from private copies with dependencies installed alongside them
 | 3.13.2 (embedded) | 988 | 2 | 671.26 |
 | 3.13.18 | 988 | 2 | 483.90 |
 | 3.14.6 | 988 | 2 | 517.62 |
+| 3.14.10 | 988 | 2 | 552.04 |
 | 3.14.10 free-threaded | 988 | 2 | 670.46 |
 
-The regular CPython 3.14.10 build is the last interpreter still being checked.
+The matrix completed on 2026-11-02, retaining the completed runs from 2026-11-01.
 The free-threaded build keeps the GIL disabled after importing pytest and the installed
 package, confirmed with `sys._is_gil_enabled()`.
 
