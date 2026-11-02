@@ -94,7 +94,7 @@ def test_messages_stay_short_for_megabyte_input(shape: str) -> None:
         assert len(str(error)) <= 220
 
 
-def test_huge_names_and_values_in_build_errors_are_cut() -> None:
+def test_huge_names_and_values_are_omitted_from_errors() -> None:
     long = "a" * 1_000_000
     calls: list[Callable[[], object]] = [
         lambda: build(1, extensions={long + " ": None}),
@@ -107,9 +107,7 @@ def test_huge_names_and_values_in_build_errors_are_cut() -> None:
         with pytest.raises(HstsError) as caught:
             call()
         assert len(str(caught.value)) <= 220
-        assert "1000000 characters" in str(caught.value) or "1000001 characters" in str(
-            caught.value
-        )
+        assert "a" * 40 not in str(caught.value).lower()
 
 
 def test_megabyte_heads_through_the_command_line(

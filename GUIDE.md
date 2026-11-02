@@ -90,7 +90,7 @@ the lint codes, these codes are used:
 | `max-age.negative` | `max_age` is below 0 |
 | `max-age.too-large` | `max_age` is above 2147483648, the cap this library applies |
 | `build.name` | an extension name is not a token, or is one of the three known names |
-| `build.value` | an extension value has a control or non-ASCII character |
+| `build.value` | an extension value has a control character other than HTAB, or a non-ASCII character |
 | `duplicate` | two extension names are equal without regard to case |
 
 An argument of the wrong type raises `TypeError`, never `HstsError`: a `max_age` that is
@@ -106,7 +106,14 @@ change what is written. An `Hsts` given to `build`, `preload_issues` or `is_prel
 is checked again, so one that skipped its checks (a subclass that overrides
 `__post_init__`, or fields changed with `object.__setattr__`) raises as `Hsts` would.
 
-Messages quote at most 40 characters of a name or value, then its length.
+Library-generated messages omit arbitrary directive names, values and received class
+names. Codes, offsets and validation explanations remain available; syntax errors may
+identify an offending character or code point. Caller-created `HstsError` and `Issue`
+objects retain the messages supplied by the caller.
+
+The builder allows HTAB in quoted extension values: `build(600, extensions={"note": "a\tb"})`
+returns `'max-age=600; note="a\tb"'`, with a literal tab inside the quotes. Other control
+characters and all non-ASCII characters are refused.
 
 ## Preload rules
 

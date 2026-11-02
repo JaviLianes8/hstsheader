@@ -17,7 +17,7 @@ import re
 from bisect import bisect_right
 from collections.abc import Iterator, Mapping
 
-from ._chars import ascii_lower, shorten
+from ._chars import ascii_lower
 from ._model import Issue
 
 # Go's unicode.IsSpace, the set strings.TrimSpace removes. Only the UTF-8 form of each is
@@ -109,10 +109,9 @@ def misreads(text: str, names: Mapping[int, str]) -> list[Issue]:
             continue
         offset = octets.char(start)
         if names.get(offset) != key:
-            shown = text[offset : octets.char(start + len(piece))]
             message = (
-                f"the hstspreload.org checker cuts the header at every ';' and reads "
-                f"{shorten(shown)!r} as {_EXACT.get(key, key)}"
+                "the hstspreload.org checker cuts the header at every ';' and reads "
+                f"this part as {_EXACT.get(key, key)}"
             )
             issues.append(Issue("preload.misread", message, "error", offset))
     return issues

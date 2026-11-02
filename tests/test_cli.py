@@ -43,7 +43,7 @@ def test_an_ignored_value_exits_one(
             "code": "duplicate",
             "severity": "error",
             "offset": 13,
-            "message": "max-age appears more than once; every directive must be unique",
+            "message": "a directive appears more than once; every directive must be unique",
         }
     ]
 

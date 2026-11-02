@@ -34,7 +34,7 @@ def test_the_tolerant_error_names_the_broken_max_age() -> None:
     with pytest.raises(HstsError) as caught:
         parse(header)
     assert (caught.value.code, caught.value.offset) == ("syntax", len(header))
-    assert "expected a value for Max-Age" in str(caught.value)
+    assert "expected a directive value" in str(caught.value)
     with pytest.raises(HstsError) as early:
         parse('a b; max-age="1')
     # The unterminated quote of max-age, not the earlier "a b".
@@ -55,14 +55,14 @@ def test_a_str_subclass_is_read_as_its_text() -> None:
     assert lint(_Odd("max-age=1")) == ()
 
 
-def test_messages_quote_at_most_forty_characters() -> None:
+def test_messages_omit_names_and_values_at_the_old_truncation_boundary() -> None:
     name = "n" * 41
     (issue,) = [i for i in lint(f"max-age=1; {name}") if i.code == "unknown-directive"]
-    assert issue.message == f"unknown directive {'n' * 40}... (41 characters) is ignored"
+    assert issue.message == "unknown directive is ignored"
     (exact,) = [i for i in lint(f"max-age=1; {name[:40]}") if i.code == "unknown-directive"]
-    assert exact.message == f"unknown directive {'n' * 40} is ignored"
+    assert exact.message == "unknown directive is ignored"
     (digits,) = [i for i in lint("max-age=" + "9" * 40 + "x") if i.code == "max-age.not-digits"]
-    assert digits.message == f"max-age must be ASCII digits, got {'9' * 40!r}... (41 characters)"
+    assert digits.message == "max-age must be ASCII digits"
 
 
 def test_version_option(capsys: pytest.CaptureFixture[str]) -> None:

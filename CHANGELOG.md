@@ -58,8 +58,11 @@ change.
   the single issue `field.missing`; exit status 2 means no response has the field.
 - The `max-age.too-large` message names 2^31 as this library's cap; RFC 6797 sets no
   ceiling and the value follows RFC 9111 by analogy.
-- Error messages and `Issue` messages quote at most 40 characters of a directive name
-  or value, followed by its length; 0.2.0 quoted the whole of it, megabytes included.
+- Library-generated error and `Issue` messages omit arbitrary directive names and
+  values, including malformed max-age values, extension names and preload checker
+  excerpts. Wrong-type diagnostics omit received class names, which can be sensitive
+  or arbitrarily long. Codes, severities and offsets are unchanged. Caller-supplied
+  messages on directly constructed `HstsError` and `Issue` objects are retained.
 - `Hsts`, `Issue` and `HstsError` report `hstsheader` as their module, so `repr`,
   tracebacks and pickles name the public path instead of a private module.
 - A `str` subclass passed to `parse`, `lint` or the preload checks is read as a plain

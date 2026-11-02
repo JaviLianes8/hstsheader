@@ -88,7 +88,7 @@ def test_a_header_with_only_warnings_is_honoured(
             "code": "unknown-directive",
             "severity": "warning",
             "offset": 13,
-            "message": "unknown directive foo is ignored",
+            "message": "unknown directive is ignored",
         }
     ]
 

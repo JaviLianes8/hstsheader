@@ -36,7 +36,7 @@ def test_hsts_flags_must_be_bool(field: str, value: object) -> None:
     with pytest.raises(TypeError) as caught:
         Hsts(1, **{field: value})  # type: ignore[arg-type]
     assert not isinstance(caught.value, HstsError)
-    assert str(caught.value) == f"{field} must be a bool, got {type(value).__name__}"
+    assert str(caught.value) == f"{field} must be a bool"
 
 
 def test_hsts_error_is_a_value_error_with_code_and_offset() -> None:

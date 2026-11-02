@@ -138,7 +138,7 @@ def misread_codes(kind: str) -> tuple[set[int], list[str]]:
     stray: list[str] = []
     for header, where in sweep_headers(kind):
         for issue in misreads(header, NO_PRELOAD_NAMES):
-            exact = issue.message.endswith("reads 'preload' as preload")
+            exact = issue.message.endswith("reads this part as preload")
             if issue.offset in where and exact:
                 trimmed.add(where[issue.offset])
             else:

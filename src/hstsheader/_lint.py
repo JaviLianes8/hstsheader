@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
 from itertools import islice
 
-from ._chars import DIGITS, shorten
+from ._chars import DIGITS
 from ._model import DELTA_SECONDS_MAX, Issue
 from ._scan import Directive, scan
 
@@ -71,8 +71,7 @@ def _max_age(directive: Directive, issues: list[Issue]) -> int | None:
         issues.append(Issue("max-age.no-value", "max-age needs a value", "error", directive.offset))
         return None
     if not value or not all(char in DIGITS for char in value):
-        shown = repr(value) if len(value) <= 40 else f"{value[:40]!r}... ({len(value)} characters)"
-        message = f"max-age must be ASCII digits, got {shown}"
+        message = "max-age must be ASCII digits"
         issues.append(Issue("max-age.not-digits", message, "error", offset))
         return None
     seconds, capped = delta_seconds(value)
@@ -99,14 +98,14 @@ def _first_field(value: str | Iterable[str]) -> tuple[str | None, int]:
         # A plain copy: a str subclass could change what indexing or iteration returns.
         return str.__str__(value), 1
     if isinstance(value, Mapping) or not isinstance(value, Iterable):
-        raise TypeError(f"pass a str or a list of str, got {type(value).__name__}")
+        raise TypeError("pass a str or a list of str")
     if isinstance(value, Set):  # a set (dict keys and items included) has no field order
-        raise TypeError(f"field lines need an order; got a {type(value).__name__}")
+        raise TypeError("field lines need an order; sets are not supported")
     # Two items tell whether there is more than one line; never pull a long source to its end.
     fields = list(islice(value, 2))
     for item in fields:
         if not isinstance(item, str):
-            raise TypeError(f"field lines must be str, got {type(item).__name__}")
+            raise TypeError("field lines must be str")
     return (str.__str__(fields[0]) if fields else None), len(fields)
 
 
@@ -133,8 +132,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
     preload_valued = False
     for offset, key, directive in sorted(order, key=lambda item: item[0]):
         if key in seen:
-            name = shorten(directive.name if directive else key)
-            message = f"{name} appears more than once; every directive must be unique"
+            message = "a directive appears more than once; every directive must be unique"
             issues.append(Issue("duplicate", message, "error", offset))
             if key not in _HARD_REPEATS:
                 soft.add(offset)
@@ -155,7 +153,7 @@ def analyse(value: str | Iterable[str]) -> Analysis:
                 message = f"{_VALUELESS[key]} takes no value"
                 issues.append(Issue("value-not-allowed", message, "error", offset))
         else:
-            message = f"unknown directive {shorten(directive.name)} is ignored"
+            message = "unknown directive is ignored"
             issues.append(Issue("unknown-directive", message, "warning", offset))
     if "max-age" not in seen:
         issues.append(Issue("max-age.missing", "max-age is required", "error"))

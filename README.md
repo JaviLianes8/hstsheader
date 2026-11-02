@@ -170,8 +170,10 @@ Flags must be `bool`, or `None` (the default) for not given, and `max_age` an `i
 passing one next to it raises `TypeError`, and a type checker reports that call too. Its
 fields are checked again, so a subclass that skips the checks cannot write a bad value.
 Extension names must be HTTP tokens and cannot repeat or shadow the
-three known directives; values that are not tokens are quoted, and control or non-ASCII
-characters raise `HstsError`, so a value cannot smuggle a second header line. For every
+three known directives; values that are not tokens are quoted. HTAB (`\t`) is allowed;
+other control characters and non-ASCII characters raise `HstsError`, so a value cannot
+smuggle a second header line. For example, `build(600, extensions={"note": "a\tb"})`
+returns `'max-age=600; note="a\tb"'`, with a literal tab inside the quotes. For every
 valid policy, `parse(build(policy), strict=True) == policy`.
 
 ## Command line

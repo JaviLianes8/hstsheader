@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext, shorten
+from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext
 from ._model import Issue
 from ._skip import Skipper
 
@@ -122,11 +122,11 @@ def _rest(text: str, i: int, name: str, start: int) -> tuple[Directive, int]:
             end = _token(text, i)
             if end == i:
                 found = "the end" if i == len(text) else _show(text[i])
-                raise _Broken(f"expected a value for {shorten(name)}, found {found}", i)
+                raise _Broken(f"expected a directive value, found {found}", i)
             value, i = text[i:end], end
         i = _skip_ows(text, i)
     if i < len(text) and text[i] != ";":
-        message = f"unexpected {_show(text[i])} after {shorten(name)}; directives end at ';'"
+        message = f"unexpected {_show(text[i])} after a directive; directives end at ';'"
         raise _Broken(message, i)
     key = ascii_lower(name)
     return Directive(name, key, value, quoted, start, value_offset, spaced), i

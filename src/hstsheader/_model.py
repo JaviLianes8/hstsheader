@@ -23,7 +23,7 @@ class HstsError(ValueError):
     ``max-age.negative``, ``max-age.too-large``, ``build.name`` and ``build.value`` from
     :class:`Hsts` and :func:`build`) and ``offset`` is the index in the field value where
     it failed, or ``None``; as for :class:`Issue`, it can be the length of the value when
-    the value ended too early. Messages quote at most 40 characters of the input. Code
+    the value ended too early. Library messages omit input names and values. Code
     that raises one itself calls ``HstsError(message, *, code="invalid", offset=None)``:
     ``invalid`` is only that default, never raised by this library, and an offset is
     appended to the message.
@@ -35,7 +35,7 @@ class HstsError(ValueError):
     ...     print(error.code, error.offset)
     ...     print(error)
     duplicate 12
-    max-age appears more than once; every directive must be unique (at offset 12)
+    a directive appears more than once; every directive must be unique (at offset 12)
     """
 
     __module__ = "hstsheader"
@@ -55,16 +55,19 @@ class Issue:
     """One finding about a header value.
 
     ``code`` is stable and listed in the README; ``message`` is for people and may be
-    reworded. An ``error`` means a user agent that follows RFC 6797, reading quoted
-    strings by RFC 9110, ignores the whole header; a ``warning`` marks something legal
-    that is likely a mistake or is refused by some checkers. ``offset`` indexes the field
+    reworded. Severity refers to the check that produced the finding: a :func:`lint`
+    ``error`` means RFC 6797 rejects the header (quoted strings follow RFC 9110), while
+    a :func:`preload_issues` ``error`` means it fails the preload header requirements.
+    A ``warning`` does not fail that check. Preload checks downgrade duplicate directives
+    other than max-age and includeSubDomains to warnings, even though RFC 6797 rejects
+    them. A valid RFC header can still fail preload requirements. ``offset`` indexes the field
     value, or is ``None`` for a finding about the header as a whole. A ``syntax`` offset
     equal to the length of the value means it ended where more was needed, and one for an
     unterminated quoted string points at its opening quote.
 
     >>> from hstsheader import lint
     >>> lint("max-age=600; foo")
-    (Issue(code='unknown-directive', message='unknown directive foo is ignored', severity='warning', offset=13),)
+    (Issue(code='unknown-directive', message='unknown directive is ignored', severity='warning', offset=13),)
     """  # noqa: E501
 
     __module__ = "hstsheader"
@@ -77,13 +80,13 @@ class Issue:
 
 def check_flag(name: str, value: object) -> None:
     if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a bool, got {type(value).__name__}")
+        raise TypeError(f"{name} must be a bool")
 
 
 def check_max_age(value: object) -> int:
     """Return ``value`` as a plain int when it is a valid max-age for a sender, else raise."""
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"max_age must be an int, got {type(value).__name__}")
+        raise TypeError("max_age must be an int")
     # Keep a plain int: an int subclass could render itself as anything in a header.
     value = int.__index__(value)
     if value < 0:
