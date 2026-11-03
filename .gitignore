@@ -14,3 +14,6 @@ htmlcov/
 # Third-party reference files, fetched locally by scripts/fetch_upstream.py; only the manifest is tracked.
 tests/upstream/*
 !tests/upstream/MANIFEST.json
+
+# The hstspreload checker built from tests/oracle; see CONTRIBUTING.md.
+tests/oracle/hstspreload-oracle*

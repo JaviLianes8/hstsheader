@@ -15,7 +15,7 @@ def test_findings_are_issue_objects_with_a_message() -> None:
     (issue,) = lint("max-age=1; x")
     assert isinstance(issue, Issue)
     assert issue == Issue("unknown-directive", issue.message, "warning", 11)
-    assert "x" in issue.message
+    assert issue.message == "unknown directive is ignored"
 
 
 def test_warnings_flag_legal_but_doubtful_choices() -> None:

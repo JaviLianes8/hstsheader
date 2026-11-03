@@ -10,8 +10,9 @@ Whitespace may appear between any two words and separators (RFC 2616 section 2.2
 RFC 2616 LWS and RFC 9112 section 5.2 allow. A quoted-pair follows RFC 9110 section 5.6.4
 (HTAB, SP, VCHAR or obs-text after the backslash), stricter on purpose than RFC 2616, which
 let any US-ASCII character follow. A directive that breaks the grammar is reported and
-skipped up to the next semicolon that is not inside a quoted string, so the rest can still
-be read.
+skipped up to the next semicolon that is not inside a quoted string (one that runs to its
+closing quote, even past a character the grammar refuses there), so the rest can still be
+read.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from dataclasses import dataclass, field
 
 from ._chars import OWS, TCHAR, ascii_lower, is_pair_char, is_qdtext
 from ._model import Issue
+from ._skip import Skipper
 
 # RFC 9110 section 5.5: CR, LF and NUL are invalid; a recipient may replace them with SP.
 _REPLACED = str.maketrans({"\r": " ", "\n": " ", "\0": " "})
@@ -120,38 +122,26 @@ def _rest(text: str, i: int, name: str, start: int) -> tuple[Directive, int]:
             end = _token(text, i)
             if end == i:
                 found = "the end" if i == len(text) else _show(text[i])
-                raise _Broken(f"expected a value for {name}, found {found}", i)
+                raise _Broken(f"expected a directive value, found {found}", i)
             value, i = text[i:end], end
         i = _skip_ows(text, i)
     if i < len(text) and text[i] != ";":
-        raise _Broken(f"unexpected {_show(text[i])} after {name}; directives end at ';'", i)
+        message = f"unexpected {_show(text[i])} after a directive; directives end at ';'"
+        raise _Broken(message, i)
     key = ascii_lower(name)
     return Directive(name, key, value, quoted, start, value_offset, spaced), i
-
-
-def _resync(text: str, i: int) -> int:
-    """Index of the next ';' outside a quoted string, or the end of the text."""
-    while i < len(text) and text[i] != ";":
-        if text[i] == '"':
-            try:
-                i = _quoted(text, i)[1]
-                continue
-            except _Broken:
-                # A quote that never closes would swallow everything after it; give up on
-                # it and resume at the next plain semicolon instead.
-                nxt = text.find(";", i)
-                return len(text) if nxt < 0 else nxt
-        i += 1
-    return i
 
 
 def scan(text: str) -> Scan:
     """Split ``text`` into directives, recording every syntax problem as an :class:`Issue`."""
     result = Scan()
-    for fold in _FOLD.finditer(text):
+
+    def unfold(fold: re.Match[str]) -> str:
         message = "folded line (obsolete line folding), read as whitespace"
         result.issues.append(Issue("obs-fold", message, "warning", fold.start()))
-        text = text[: fold.start()] + " " * len(fold.group()) + text[fold.end() :]
+        return " " * len(fold.group())  # same length, so offsets keep pointing at the input
+
+    text = _FOLD.sub(unfold, text)
     for index, char in enumerate(text):
         if char in "\r\n\0":
             message = f"{_show(char)} is not allowed in a field value"
@@ -159,22 +149,37 @@ def scan(text: str) -> Scan:
     text = text.translate(_REPLACED)
     if not text.strip(OWS):
         return result
+    skipper = Skipper(text)
+    semicolons: list[int] = []  # the ';' that ends each element, in order
+    empty: list[int] = []  # the elements without a directive, by index
+    last = -1  # the last element with a directive
     i = 0
     while True:
         start = i = _skip_ows(text, i)
         if i == len(text) or text[i] == ";":
-            # Point at a semicolon: the one closing this empty element, or the last one.
-            where = i if i < len(text) else text.rindex(";")
-            message = "empty directive (an extra ';')"
-            result.issues.append(Issue("empty-directive", message, "warning", where))
+            empty.append(len(semicolons))
         else:
+            last = len(semicolons)
             try:
                 directive, i = _directive(text, i)
                 result.directives.append(directive)
             except _Broken as broken:
                 result.issues.append(Issue("syntax", broken.message, "error", broken.offset))
                 result.broken.append((start, ascii_lower(broken.name)))
-                i = _resync(text, start)
+                i = skipper.resync(start, broken.offset)
         if i >= len(text):
-            return result
+            break
+        semicolons.append(i)
         i += 1
+    for element in empty:
+        # One warning per extra ';', each at its own: an empty element points at the ';'
+        # closing it, or after the last directive at the one opening it.
+        if element < last:
+            where = semicolons[element]
+        elif element > 0:
+            where = semicolons[element - 1]
+        else:
+            continue  # no directive at all: n semicolons make n + 1 empty elements
+        message = "empty directive (an extra ';')"
+        result.issues.append(Issue("empty-directive", message, "warning", where))
+    return result

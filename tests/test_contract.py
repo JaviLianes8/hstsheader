@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.resources
+import typing
 
 import hstsheader
 
@@ -12,6 +13,7 @@ PUBLIC_API: list[str] = [
     "Hsts",
     "HstsError",
     "Issue",
+    "Severity",
     "build",
     "is_preloadable",
     "lint",
@@ -42,8 +44,13 @@ def test_the_package_ships_type_information() -> None:
 def test_every_public_function_and_class_has_a_docstring() -> None:
     for name in hstsheader.__all__:
         obj = getattr(hstsheader, name)
-        if callable(obj):
+        if callable(obj) and typing.get_origin(obj) is None:
             assert obj.__doc__, name
+
+
+def test_the_type_alias_is_documented_with_an_example() -> None:
+    # A Literal alias cannot carry a docstring; the package docstring documents it.
+    assert ">>> Severity" in (hstsheader.__doc__ or "")
 
 
 def test_the_constants_hold_the_values_the_sources_name() -> None:
