@@ -168,6 +168,19 @@ def test_installed_wheel_end_to_end(wheel: Path, tmp_path: Path) -> None:
         report = json.loads(shown.stdout)
         assert report["honoured"] is True and report["preloadable"] is False
         assert report["policy"]["max_age"] == 63072000
+        for size in (0, 6000):
+            marker = "private_argument_canary_" + "x" * size
+            for arguments in (
+                ["--preload=" + marker, "max-age=1"],
+                ["max-age=1", marker],
+                ["--" + marker, "max-age=1"],
+            ):
+                rejected = _run(*command, *arguments, cwd=work)
+                assert rejected.returncode == 2 and rejected.stdout == b""
+                assert b"private_argument_canary_" not in rejected.stderr
+                assert 0 < len(rejected.stderr) < 512
+                assert b"usage:" in rejected.stderr and b"--help" in rejected.stderr
+                assert b"Traceback" not in rejected.stderr
     good = _run(script, "max-age=600", cwd=work)
     assert good.returncode == 0 and json.loads(good.stdout)["honoured"] is True
     usage = _run(script, cwd=work, stdin=b"HTTP/1.1 200 OK\r\n\r\n")

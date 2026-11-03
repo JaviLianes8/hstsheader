@@ -203,6 +203,8 @@ The JSON object has these keys, in this order:
 Exit status: 0 when the header is honoured (with `--preload`: preloadable), 1 when it is
 not (`field.missing` above included), 2 for usage errors, including input where no
 response has the field and an empty standard input.
+Argument parsing errors print a bounded usage diagnostic without supplied option names
+or values and direct the caller to `--help`.
 An empty `VALUE` argument is a value to check, so it exits 1. When the reader of the
 output stops early (`| head`), the rest is discarded quietly and the exit status still
 gives the verdict.

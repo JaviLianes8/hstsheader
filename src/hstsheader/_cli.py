@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from collections.abc import Sequence
+from typing import NoReturn
 
 from . import __version__
 from ._head import response_fields
@@ -26,6 +27,12 @@ _MISSING = {
     "message": "the first final response has no Strict-Transport-Security field; "
     "a later response in the input has one",
 }
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        # ArgumentParser messages can include arbitrary option names and values.
+        super().error("invalid arguments; use --help for usage")
 
 
 def _issue(issue: Issue) -> dict[str, object]:
@@ -56,7 +63,7 @@ def _write(report: dict[str, object]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command line; returns the process exit code."""
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog="hstsheader",
         description="Check a Strict-Transport-Security value, or the response head read from "
         "standard input (for example the output of curl -sI). Prints the policy and the "
@@ -73,13 +80,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     # Started with standard input closed (None) there is nothing to read: as for a terminal.
     if args.value is None and (sys.stdin is None or sys.stdin.isatty()):
-        parser.error("give a value, or pipe a response head (curl -sI URL | hstsheader)")
+        argparse.ArgumentParser.error(
+            parser, "give a value, or pipe a response head (curl -sI URL | hstsheader)"
+        )
     text = args.value
     if text is None:
         try:
             raw = sys.stdin.buffer.read()
         except (OSError, ValueError):  # open but not readable, a write-only file for one
-            parser.error("standard input cannot be read; give a value or pipe a response head")
+            argparse.ArgumentParser.error(
+                parser, "standard input cannot be read; give a value or pipe a response head"
+            )
         # Latin-1 keeps every octet of a raw head, obs-text included.
         text = raw.decode("latin-1")
     heads = response_fields(text)

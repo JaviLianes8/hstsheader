@@ -96,6 +96,9 @@ change.
 
 ### Fixed
 
+- Command line argument errors omit supplied option names and values and use a bounded
+  diagnostic with help guidance. Unknown options, extra positional arguments and values
+  attached to flags still exit with status 2; standard input diagnostics are unchanged.
 - The first `syntax` finding, and so the error of strict `parse` and the first issue on
   the command line, could be an error that skipping a broken directive made up, ahead of
   the real first bad character: the Python string `'a=";=\x01"; max-age=1'` reported

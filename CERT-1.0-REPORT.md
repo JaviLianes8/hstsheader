@@ -409,6 +409,42 @@ Rounds 1 to 4 and 7 below.
 
 ## QA lenses (item 19)
 
+### Independent review round 1, 2026-11-03
+
+Reviewed head: `5818b19c97396d7a158c05ead7b473e1edbdb838`.
+Fix commit: `fix cli argument diagnostics` (this revision).
+
+| Finding | Severity | Change | Verification |
+| --- | --- | --- | --- |
+| CERT-05 | medium | Argument parsing errors use a fixed message with help guidance, omitting arbitrary option names and values. Exit status 2, accepted arguments, JSON output and fixed standard input guidance are unchanged. CHANGELOG and GUIDE document the diagnostic contract. | Ten subprocess contracts cover short and long values on unknown options, extra positional arguments and values attached to preload, help and version flags. Installed-wheel checks cover both the console script and module entry point, each with six short/long probes. |
+
+The contracts were added before the runtime fix: all ten module cases failed on the
+reviewed source because stderr exposed the synthetic marker. The installed-wheel
+console case also failed on its marker assertion. The tests require exit status 2,
+empty stdout, no marker or traceback in stderr, usage/help guidance and fewer than
+512 stderr bytes. No public API changes are needed and no findings are disputed.
+Independent re-review remains pending.
+
+Verification on CPython 3.14.6: `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict src tests` and `pytest` each exit 0.
+The suite reports **1060 passed, 5 deselected in 405.43 seconds**, with fetched
+references, the Go oracle, wheel installation and PyPI 0.2.0 upgrade enabled.
+Every test uses pytest-timeout at 300 seconds, sys capture and a scratch-local
+basetemp. As in the review, five device-dependent cases are excluded to respect
+the device-file restriction: `test_a_closed_output_pipe_keeps_the_verdict`,
+`test_a_reader_that_stops_early_gets_no_traceback`,
+`test_a_small_report_to_a_reader_gone_before_any_write_is_quiet`,
+`test_a_process_started_without_stdout_keeps_the_verdict` and
+`test_a_process_started_without_stdin_exits_with_a_usage_error`.
+
+The reviewer's six original probes also pass against the rebuilt installed wheel:
+every process exits 2, omits the canary and emits 116 bytes on stderr. Only the
+scratch-local installation path in the probe copy is adjusted. Logs are retained
+under the external certification scratch directory `fix-review-r1-20261103/`:
+`red-module.log`, `red.log`, `format.log`, `lint.log`, `types-src.log`,
+`types-all.log`, `pytest-green.log`, `reviewer-green.log` and
+`logs/cli-diagnostics.jsonl`.
+
 ### Resumed round 1, 2026-11-02
 
 Reviewed head: `81ec1c3df8f701d5d7de6cac724c6d7d1ce8081e`.
@@ -747,6 +783,13 @@ which d025a95 updates.
 
 ## Independent review (item 16)
 
+### Resumed round 1, 2026-11-03
+
+The independent review of `5818b19` reports CERT-05 against item 5: argparse echoes
+arbitrary argument values and can emit diagnostics over 6 KB. The fix and its
+test-first evidence are recorded in the QA section above. Re-review is pending;
+the earlier rounds below remain historical evidence.
+
 ### Round 1
 
 The reviewer checked bf6f96c against the 19 items, running each: items 1 to 15 and 19
@@ -821,5 +864,5 @@ tests, which need `HSTSHEADER_E2E` and PyPI).
 
 ## Disputed findings
 
-None in the resumed QA round 1 of 2026-11-02, historical QA rounds 1 to 7, or review
-rounds 1 to 3.
+None in the resumed independent review round 1 of 2026-11-03, resumed QA round 1 of
+2026-11-02, historical QA rounds 1 to 7, or review rounds 1 to 3.
