@@ -412,7 +412,8 @@ Rounds 1 to 4 and 7 below.
 ### Independent review round 1, 2026-11-03
 
 Reviewed head: `5818b19c97396d7a158c05ead7b473e1edbdb838`.
-Fix commit: `fix cli argument diagnostics` (this revision).
+Fix commit: `7523ca1086cf09363227bb3b3653a25933603642`
+(`fix cli argument diagnostics`).
 
 | Finding | Severity | Change | Verification |
 | --- | --- | --- | --- |
