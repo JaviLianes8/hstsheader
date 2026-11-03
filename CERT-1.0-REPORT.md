@@ -16,8 +16,8 @@ Progress:
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
 - [x] Gates (item 15)
 - [x] PR and trace guard CLEAN
-- [ ] Five QA lenses report PASS (item 19)
-- [ ] Independent reviewer reports PASS (item 16)
+- [x] Five QA lenses report PASS (item 19)
+- [x] Independent reviewer reports PASS (item 16)
 - [ ] Merge and publish (item 17)
 
 ## Scorecard
@@ -39,10 +39,69 @@ Progress:
 | 13 | pyproject 1.0.0, Production/Stable | PASS |
 | 14 | sdist and wheel contents | PASS |
 | 15 | Gates each exit 0 | PASS: see Gates |
-| 16 | Independent reviewer | Round 1 at bf6f96c: FAIL on item 18 alone (three of its mutants of `_head.py` survived), killed by new contracts in d4ef4d6. Round 2 at c3ad265: FAIL on item 18 alone (its mutant Z06 of `_scan.py` survived), every other item PASS; Z06 and the swept sibling sites are killed by new contracts in ae2695e. Round 3 at 637e654: FAIL on item 18 alone (its mutants M08 and M16 of `_head.py` survived), every other item PASS; both and the swept sibling sites are killed by new contracts in 9a6ec2c and a0c7085; re-review pending |
-| 17 | PR and trace guard | [PR #3](https://github.com/JaviLianes8/hstsheader/pull/3) from `release/1.0.0`, trace guard CLEAN; merge and publish left to the maintainer |
+| 16 | Independent reviewer | PASS: resumed round 2 at e01edb5, all findings resolved; scorecard below |
+| 17 | PR and trace guard | PASS for release readiness: [PR #3](https://github.com/JaviLianes8/hstsheader/pull/3) from `release/1.0.0`; merge and publication remain reserved to the maintainer |
 | 18 | Contracts bite (mutations) | PASS: all five resumed round 1 survivors killed by new contracts; prior local round: 12 mutants, all killed by contract assertions; historical round: 50 mutants, 46 killed at once, 2 survivors killed by new contracts, 2 argued equivalent; every lens e survivor of rounds 1 to 7 and every survivor of the independent review (rounds 1 to 3) killed by a new contract |
-| 19 | Five independent QA lenses | Resumed round 1 at 81ec1c3: all ten reported findings fixed below, none disputed; independent rechecks pending |
+| 19 | Five independent QA lenses | PASS: a, c and e in resumed round 2; b and d in resumed round 1; reports and commits below |
+
+## Final QA and review record, 2026-11-03
+
+The following are the final verdicts for the resumed certification. Earlier rounds
+below are retained as historical evidence. Report paths are relative to this checkout;
+they identify local evidence outside the repository and are not distribution contents.
+Each verdict applies to its recorded commit and scope, not a new review of later commits.
+
+| Lens | Rounds | Final verdict | Report path | Commit |
+| --- | ---: | --- | --- | --- |
+| a: API and documentation | 2 | PASS | `../../scratch/hstsheader-cert/lens-a-r2/REPORT.md` | `5818b19c97396d7a158c05ead7b473e1edbdb838` |
+| b: Correctness and ground truth | 1 | PASS | `../../scratch/hstsheader-cert/lens-b-r1/REPORT.md` | `81ec1c3df8f701d5d7de6cac724c6d7d1ce8081e` |
+| c: Robustness | 2 | PASS | `../../scratch/hstsheader-cert/lens-c-r2/REPORT.md` | `5818b19c97396d7a158c05ead7b473e1edbdb838` |
+| d: Packaging and external consumers | 1 | PASS | `../../scratch/hstsheader-cert/lens-d-r1/REPORT.md` | `81ec1c3df8f701d5d7de6cac724c6d7d1ce8081e` |
+| e: Contract strength | 2 | PASS | `../../scratch/hstsheader-cert/lens-e-r2/REPORT.md` | `5818b19c97396d7a158c05ead7b473e1edbdb838` |
+
+The independent reviewer reports PASS in resumed round 2 at
+`e01edb5fb24127d7463b5eef402bb8bda9c40258`, with no remaining findings.
+Report: `../../scratch/hstsheader-cert/review-r2/REPORT.md`.
+CERT-05 is fixed: invalid CLI arguments produce bounded diagnostics without echoing
+supplied values. The review verifies the final CLI change and carries forward the
+unchanged scope of earlier lens and interpreter checks.
+
+### Reviewer scorecard
+
+| Item | Final certification result | Review evidence |
+| --- | --- | --- |
+| 1 | PASS | Eleven public names, signatures and defaults pinned; CLI behavior changes documented. |
+| 2 | PASS | Exact public exports tested; documentation uses public imports. |
+| 3 | PASS | Nine doctest scenarios and five README blocks with thirteen outputs pass. |
+| 4 | PASS | Strict typing of source and tests passes; installed wheel includes py.typed. |
+| 5 | PASS | API diagnostic contracts and twenty installed-wheel invalid-argument probes pass. |
+| 6 | PASS | Public behavior and installed consumers pass; focused contract baseline has 203 tests. |
+| 7 | PASS | All nine freshly fetched references match the manifest; pinned Go oracle built and run. |
+| 8 | PASS | Wheel/sdist built, external consumers and both CLI entry points pass; PyPI 0.2.0 upgrade passes. |
+| 9 | PASS | Seeded fuzz, grammar comparisons, code-point sweeps, hostile inputs and scaling checks pass. |
+| 10 | PASS | Full primary suite and 21 CLI cases on ten secondary configurations pass; prior full matrix retained. |
+| 11 | PASS | Strict artifact validation and README rendering pass; all 26 targets are absolute or anchors. |
+| 12 | PASS | Dated 1.0.0 changelog describes stable contracts and compatibility changes. |
+| 13 | PASS | Version 1.0.0, stable classifier, Python 3.10-3.14, MIT, URLs and no runtime dependencies verified. |
+| 14 | PASS | Artifact contents and LICENSE checked; no fetched third-party bodies or scratch files ship. |
+| 15 | PASS | Four separate gates, strict test typing, build and strict artifact validation pass. |
+| 16 | PASS | Resumed review round 2 resolves CERT-05 with no new findings. |
+| 17 | PASS for release readiness | Open PR #3 verified; reviewer records merge as pending, outside the review gates. |
+| 18 | PASS | Thirteen isolated review mutations fail behavior assertions; restored 203-test baseline passes. |
+| 19 | PASS | All five final PASS reports and their supporting evidence verified. |
+
+Item 17's review entry is literally "pending merge", not a completed merge or
+publication. Its readiness result above covers only the authorized pre-merge stage;
+merge and publication remain pending for the maintainer.
+
+The review's final serial source suite passed 1060 tests with five deselected in
+421.32 seconds. The five tests exercise null-device or closed-stream recovery and
+were excluded under the device-file restriction; every executed test used a 300-second
+timeout. An earlier overlapping run failed two timing assertions; the unchanged full
+serial rerun passed. Lens e likewise records an initial timing failure and a passing
+restored retry, rather than claiming a clean full-suite run for that lens. The separate
+installed-wheel review sweep passed 40 cases. Historical findings below are resolved
+by these final reports, including entries that described rechecks as pending at the time.
 
 ## Preparation resumed on 2026-11-02
 
